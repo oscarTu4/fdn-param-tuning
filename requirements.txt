@@ -1,0 +1,10 @@
+numpy==1.26.4
+numpy 
+scipy 
+torch 
+torchaudio 
+tqdm 
+matplotlib
+pandas
+soundfile
+einops
