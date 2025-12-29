@@ -110,11 +110,11 @@ class Trainer:
         y = self.net(x)
         loss = self.criterion(y, gt)
         
-        if torch.isnan(loss):
-            print("LOSS IS NAN")
-            print("y", torch.isnan(y).any())
-            print("x", torch.isnan(x).any())
-            exit()
+        #if torch.isnan(loss):
+        #    print("LOSS IS NAN")
+        #    print("y", torch.isnan(y).any())
+        #    print("x", torch.isnan(x).any())
+        #    exit()
         
         loss.backward()
         
