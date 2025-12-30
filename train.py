@@ -168,7 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('--ir_length', type=float, default=0.5, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
     
     # training
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=4, help='batch size')
     parser.add_argument('--max_epochs', type=int, default=10,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
     

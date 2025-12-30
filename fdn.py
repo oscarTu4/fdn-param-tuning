@@ -152,13 +152,6 @@ class FDN(nn.Module):
             for i in range(N):
                 write_ptr[i] = (write_ptr[i] + 1) % delay_lens[i]
                 read_ptr[i]  = (read_ptr[i] + 1) % delay_lens[i]
-        
-        # output wird hier NaN, das macht einen Fehler in der Loss Funktion und das Training flatlined
-        # das hier verhindert NaN fehler in loss funktion, macht aber eig nur random werte
-        # problem für später, wird wohl durch richtigen FDN Block gelöst
-        #if torch.isnan(output).any():
-        #    print("output is NaN")
-        output = torch.nan_to_num(output, nan=0.0, posinf=1e4, neginf=-1e4)
 
         return output
 
