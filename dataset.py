@@ -22,16 +22,15 @@ def normalize(x):
     energy = (x**2).sum(dim=-1, keepdim=True)
     return x / torch.sqrt(energy + 1e-8)
 
-def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000):
-    
+def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float = 1.):
     IRs = {}
     
     for item in os.listdir(dir):
         abs_path = os.path.join(dir, item)
         
         if os.path.isdir(abs_path):
-            print(f"found dir, entering dir {abs_path}")
-            sub_irs = loadAllIRFromFolder(dir=abs_path, targetSR=targetSR)
+            print(f"loading dir {abs_path}")
+            sub_irs = loadAllIRFromFolder(dir=abs_path, targetSR=targetSR, ir_length=ir_length)
             IRs.update(sub_irs)
         elif item.endswith(".wav"):
             ir, sr = torchaudio.load(abs_path)
@@ -40,32 +39,27 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000):
             if sr != targetSR:
                 sr = transforms.Resample(sr, targetSR)
             
-            # anzahl kanäle muss homogenisiert werden damit torch damit arbeiten kann. hier erstmal mono, 
-            # kann stereo o.ä. werden, modell müsste dafür aber angepasst werden
+            # erstmal alles mono damit es läuft 
+            # kann stereo o.ä. werden, weiss noch nicht obs flexibel geht, tensor shape sieht dementsprechend anders aus bei jedem Datenpunkt
             if ir.shape[0] != 1:
                 ir = ir.mean(dim=0, keepdim=True)
             
-            # alle files auf die gleiche Länge gebracht werden, damit torch damit arbeiten kann. müsste(?) gleich t60*fs sein
-            # target_length erstmal auf 0.2 (sekunden) zum testen, kann nach bedarf angepasst werden
-            target_length = 0.2
-            ir = pad_crop(ir, sr, target_length)
+            # fixe länge wichtig damit das Modell läuft
+            ir = pad_crop(ir, sr, ir_length)
             
             ir = normalize(ir)
             
             label = item.split(".wav")[0]
-            
             IRs[label] = ir
     
     return IRs
         
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, path_to_IRs: str):
+    def __init__(self, path_to_IRs: str, samplerate: int = 48000, ir_length: float = 1.):
         assert path_to_IRs != None, "path_to_IRs must not be emtpy"
         
-        self.IRs = loadAllIRFromFolder(path_to_IRs)
-        #print(len(self.IRs))
-        #print(self.IRs.keys())
+        self.IRs = loadAllIRFromFolder(path_to_IRs, samplerate, ir_length)
         
     def __len__(self):
         return len(self.IRs)
@@ -73,6 +67,7 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         k = list(self.IRs.keys())[index]
         v = self.IRs[k]
+        
         return v
 
 def split_dataset(dataset, split):
@@ -85,8 +80,7 @@ def split_dataset(dataset, split):
     return train_set, valid_set
 
 def load_dataset(args):
-    dataset = Dataset(path_to_IRs=args.path_to_IRs)
-    # split data into training and validation set 
+    dataset = Dataset(path_to_IRs=args.path_to_IRs, samplerate = args.samplerate, ir_length = args.ir_length)
     train_set, valid_set = split_dataset(dataset, args.split)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -107,6 +101,5 @@ def load_dataset(args):
         generator=torch.Generator(device=device),
         drop_last = True
     )
-
     
     return train_loader, valid_loader 

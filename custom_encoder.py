@@ -41,10 +41,28 @@ class Encoder(nn.Module):
                 conv2d_block(chn_in, chn_out[i], kernel[i], strides[i])
             )
         
-        self.gru1 = nn.GRU(input_size=128, num_layers=2, hidden_size=64, 
+        """self.gru1 = nn.GRU(input_size=128, num_layers=2, hidden_size=64, 
             batch_first = True, bidirectional=True)
         self.gru2 = nn.GRU(input_size=7168, num_layers=1, hidden_size=128,
-            batch_first = True, bidirectional=True)
+            batch_first = True, bidirectional=True)"""
+        
+        self.gru1 = nn.GRU(
+            input_size=128,
+            num_layers=2,
+            hidden_size=64,
+            batch_first=True,
+            bidirectional=True
+        )
+        self.gru2 = nn.GRU(
+            input_size=7168,
+            num_layers=1,
+            hidden_size=128,
+            batch_first=True,
+            bidirectional=True
+        )
+
+        self.gru1_norm = nn.LayerNorm(64*2)   # bi-directional
+        self.gru2_norm = nn.LayerNorm(128*2)
 
         self.lin_depth = 2
         in_feat, out_feat = 256, 256
@@ -60,28 +78,25 @@ class Encoder(nn.Module):
         # convert to log-freq log-mag stft 
         x = torch.log(self.stft(x) + 1e-7)
 
+        #x = torch.clamp(x, min=-12.0, max=2.0)
+        
         # add channel dimension 
         x = torch.unsqueeze(x, 1)
 
         for i, module in enumerate(self.conv_list):
             x = module(x)
-            if torch.isnan(x).any():
-                print(f"NaN after conv {i}")
-        
         
         x = rearrange(x, 'b c f t -> (b t) f c')
-        x = rearrange(self.gru1(x)[0], '(b t) f c -> b t (f c)', b=b)
-        if torch.isnan(x).any():
-            print("NaN after gru1")
-        x = self.gru2(x)[0]
-        if torch.isnan(x).any():
-            print("NaN after gru2")
+        x, _ = self.gru1(x)
+        #x = self.gru1_norm(x)
+
+        x = rearrange(x, '(b t) f c -> b t (f c)', b=b)
+        x, _ = self.gru2(x)
+        #x = self.gru2_norm(x)
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):
             x = module(x)
-        if torch.isnan(x).any():
-            print("NaN after linear")
         
         return x
 
@@ -90,12 +105,22 @@ class Encoder(nn.Module):
 class conv2d_block(nn.Module):
     def __init__(self, chn_in, chn_out, kernel, stride):
         super().__init__()
-        self.conv2d = nn.Conv2d(chn_in, chn_out, kernel, stride, bias=True)
+        self.conv2d = nn.utils.weight_norm(
+            nn.Conv2d(chn_in, chn_out, kernel, stride, bias=False)
+        )
+        
+        self.norm = nn.InstanceNorm2d(chn_out, affine=True)
+        self.act = nn.LeakyReLU(negative_slope=0.1)
+        
+        #nn.init.kaiming_normal_(self.conv2d.weight, nonlinearity="leaky_relu")
+        #self.conv2d.weight.data *= 0.1
 
     def forward(self, x):
         x = self.conv2d(x)
-        y = F.relu(x)
-        return y 
+        #x = self.norm(x)
+        #x = self.act(x)
+        x = F.relu(x) # relu or act, nicht beide
+        return x 
 
 class linear_block(nn.Module):
     def __init__(self, in_feat, out_feat):

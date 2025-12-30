@@ -43,56 +43,45 @@ class SingleProjectionLayer(nn.Module):
 # Herz vom Modell
 # TODO eventuell Encoder auch hier mit reinschreiben, bzw. in diese Datei
 class DiffFDN(nn.Module):
-    def __init__(self, delay_lens):
+    def __init__(self, delay_lens, sr: int = 48000, ir_length: float = 1.):
         super().__init__()
 
         self.delay_lens = delay_lens
+        self.ir_length = ir_length
         self.N = len(delay_lens)
         
         num_A = self.N*self.N
         num_B = self.N
         num_C = self.N
         
-        self.fdn = FDN()
+        self.fdn = FDN(sr=sr, ir_length=ir_length)
         self.encoder = Encoder()
-        self.act = nn.Tanh()
         
         features = 256 # kommt so aus encoder raus. kann angepasst werden, muss aber analog zu encoder passieren
-        #self.proj_A = nn.Linear(features, num_A)
-        #self.proj_B = nn.Linear(features, num_B)
-        #self.proj_C = nn.Linear(features, num_C)
         self.proj_A = SingleProjectionLayer(features, num_A, nn.Tanh())
         self.proj_B = SingleProjectionLayer(features, num_B, nn.Tanh())
         self.proj_C = SingleProjectionLayer(features, num_C, nn.Tanh())
-        #self.proj_bc = DoubleProjectionLayer((features, num_B), (320, num_C)) # Zahlen sollten dynamischer gestaltet werden wenn encoder hier rein kommt
         
     def forward(self, x):
-        #print(f"x before encoder nan: {torch.isnan(x).any()}")
+        
         x = self.encoder(x)
-        x = self.act(x)
-        #print(f"x after encoder nan: {torch.isnan(x).any()}")
         
         x = x.mean(dim=1)
-        #print(f"x after mean nan: {torch.isnan(x).any()}")
         A = self.proj_A(x)
         A = A.view(-1, self.N, self.N)
-        #print(f"A nan: {torch.isnan(A).any()}")
+        #A = A*0.000001
         
         B = self.proj_B(x)
-        #print(f"B nan: {torch.isnan(B).any()}")
         
         C = self.proj_C(x)
-        #print(f"C nan: {torch.isnan(C).any()}")
         
         ### das hier ist hässlich und langsam 
         ### fdn muss noch mit batched tensoren funktionieren (oder ist das das block fdn?)
         ### das wichtig
         outputs = []
         for i in range(A.shape[0]):
-            #print(f"fdn {i+1}/{A.shape[0]}")
             y_i = self.fdn(A[i], B[i], C[i], self.delay_lens, self.N)
             y_i = y_i.transpose(0, 1)
-            #print(f"y_{i}/{A.shape[0]} nan: {torch.isnan(y_i).any()}")
             outputs.append(y_i)
         
         y = torch.stack(outputs, dim=0)
@@ -104,12 +93,12 @@ class Skew(nn.Module):
         return X - X.transpose(-1, -2)
 
 ### Simons Code als nn Module, numpy musste mit torch ersetzt werden
-# sollte dynamischer gestaltet werden in Bezug auf fs, t60 usw (also als args von main übernommen werden)
 class FDN(nn.Module):
-    def __init__(self):
+    def __init__(self, sr=48000, ir_length=1.):
         super().__init__()
         self.skew = Skew()
-        self.fs = 48000
+        self.fs = sr
+        self.t60 = ir_length
     
     def forward(self, A, B, C, delay_lens, N):
         assert A.device == B.device and B.device == C.device, "wie zum fick sind die devices unterschiedlich"
@@ -121,10 +110,8 @@ class FDN(nn.Module):
             for i in range(N)
         ]
         
-        # das hier echt unschön funktioniert aber für jetzt
-        t60 = 0.2 #3.0   # muss gleich der input länge sein, das da rausgeholt werden, das hier ist hässlich
-        ir_len = int(t60*self.fs)
-        g = 10**(-3/(self.fs*t60))
+        ir_len = int(self.t60*self.fs)
+        g = 10**(-3/(self.fs*self.t60))
         G = torch.diag(g**delay_lens).to(A.dtype).to(device)
 
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
@@ -154,14 +141,24 @@ class FDN(nn.Module):
                 write_ptr[i] = (write_ptr[i] + 1) % delay_lens[i]
                 read_ptr[i]  = (read_ptr[i] + 1) % delay_lens[i]
         
-        #print("A max", A.abs().max())
-        #print("A_g nan?", torch.isnan(A_g).any(), "max", A_g.abs().max())
-        #print("d nan?", torch.isnan(d).any())
-        #print("output nan?", torch.isnan(output).any())
+        # output kann hier NaN werden, das macht einen Fehler in der Loss Funktion und das Training flatlined
+        # das hier verhindert NaN fehler in loss funktion, macht aber eig nur random werte
+        # problem für später, wird wohl durch richtigen FDN Block gelöst
+        #if torch.isnan(output).any():
+        #    print("output is NaN")
+        output = torch.nan_to_num(output, nan=0.0, posinf=1e4, neginf=-1e4)
+
+        # normalize amplitude (scale-invariant reverb is fine)
+        max_abs = output.abs().max()
+        if max_abs > 0:
+            output = output / max_abs
+
+        # soft clipping to completely bound gradient
+        output = 0.1 * torch.tanh(output)
 
         return output
 
-### das hier checke ich nicht wirklich, darum hab ich erstmal das alte fdn genommen auch wenns hässlicher ist
+### das hier checke ich nicht wirklich, darum hab ich erstmal das alte fdn genommen um die Pipeline aufzubauen
 class FeedbackDelay:
 
     def __init__(self,max_block_size,delays):
