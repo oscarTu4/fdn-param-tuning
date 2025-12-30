@@ -102,6 +102,8 @@ class FDN(nn.Module):
         self.skew = Skew()
         self.fs = sr
         self.t60 = ir_length
+        
+        self.ir_len = int(self.t60*self.fs)
     
     def forward(self, A, B, C, delay_lens, N):
         assert A.device == B.device and B.device == C.device, "wie zum fick sind die devices unterschiedlich"
@@ -116,29 +118,23 @@ class FDN(nn.Module):
             for i in range(N)
         ]
         
-        ir_len = int(self.t60*self.fs)
         g = 10**(-3/(self.fs*self.t60))
         
-        delay_tensor = torch.tensor(delay_lens, device=device, dtype=A.dtype)
-        G = torch.diag(g ** delay_tensor)
-        #G = torch.diag(g**delay_lens).to(A.dtype).to(device)
+        G = torch.diag(g**delay_lens).to(A.dtype).to(device)
 
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
-        #print(f"A_g: {A_g}")
         A_g = A_g.to(device)
 
-        impulse = torch.zeros((ir_len, C.shape[0]), device=device, dtype=A.dtype)
+        impulse = torch.zeros((self.ir_len, C.shape[0]), device=device, dtype=A.dtype)
         impulse[0, :] = 1
-        #print(f"impulse: {impulse}")
 
-        output  = torch.zeros((ir_len, 1), device=device, dtype=A.dtype)
-        #print(f"output: {output}")
+        output  = torch.zeros((self.ir_len, 1), device=device, dtype=A.dtype)
 
         # Pointer zum Lesen und Schreiben
         write_ptr = torch.zeros(N, dtype=torch.long, device=device)
         read_ptr = torch.zeros(N, dtype=torch.long, device=device)
 
-        for n in range(ir_len):
+        for n in range(self.ir_len):
             d = torch.zeros((N,1), dtype=C.dtype, device=device)
             
             for i in range(N):

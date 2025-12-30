@@ -30,16 +30,16 @@ class Trainer:
         self.train_dataset = train_dataset
         self.valid_dataset = valid_dataset
         
-        self.steps = 0 # falls checkpoint geladen wird muss das hier geändert werden
+        self.steps = 0 # falls checkpoint geladen wird muss das hier geändert werden, pytorch lightning macht das automatisch
         self.scheduler_steps = args.scheduler_steps
         self.clip_max_norm = args.clip_max_norm
 
         self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr) 
-        #self.criterion = mse_loss().to(device)
+        #self.criterion = mse_loss().to(device) # mit MSSpectralLoss wird loss NaN, daher erstmal mse bis wir ne lösung haben
         self.criterion = MSSpectralLoss(sr=args.samplerate).to(device)  # vlt besser als MSE. sparsity macht wohl keinen sinn hier
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 500, gamma = 10**(-0.2))  # step_size war 50000 das aber vlt sehr sehr hoch, müssen wir testen
 
-        #self.normalize() # normalize sollte denke angepasst werden, erstmal rausgenommen damit es läuft
+        #self.normalize() # normalize sollte denke angepasst werden, erstmal rausgenommen damit es läuft. weiss nicht wie wichtig das nicht
     
     def train(self):
         self.train_loss, self.valid_loss = [], []
@@ -57,7 +57,7 @@ class Trainer:
                 # für progressbar
                 lr = self.optimizer.param_groups[0]['lr']
                 pbar.set_postfix({
-                    "loss": f"{loss:.3f}",
+                    "loss": f"{loss}",
                     "lr": f"{lr}"
                 })
             
@@ -74,7 +74,7 @@ class Trainer:
                 
                 # für progressbar
                 pbar.set_postfix({
-                    "loss": f"{loss:.3f}",
+                    "loss": f"{loss}",
                 })
             
             self.valid_loss.append(epoch_loss/len(self.valid_dataset))
@@ -101,6 +101,10 @@ class Trainer:
         gt = x.clone() # nur zur sicherheit
         y = self.net(x)
         loss = self.criterion(y, gt)
+        
+        if torch.isnan(loss).any():
+            print("LOSS IS NAN, TRAINING FLATLINED")
+            exit()
         
         loss.backward()
         nn.utils.clip_grad_norm_(self.net.parameters(), self.clip_max_norm)
@@ -142,8 +146,8 @@ def main(args):
     delay_set = 1 
     filename = 'param' + '_N' + str(N) + '_d' + str(delay_set)
 
-    #df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
-    df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float16,'m':'Int16'})
+    df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
+    #df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float16,'m':'Int16'})
     delay_lens = torch.from_numpy(df['m'][:N].to_numpy())
     
     net = DiffFDN(delay_lens, args.samplerate, args.ir_length)
@@ -165,16 +169,16 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/ChurchIR")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
-    parser.add_argument('--ir_length', type=float, default=0.5, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
+    parser.add_argument('--ir_length', type=float, default=0.2, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
     
     # training
-    parser.add_argument('--batch_size', type=int, default=4, help='batch size')
-    parser.add_argument('--max_epochs', type=int, default=10,  help='maximum number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch size')
+    parser.add_argument('--max_epochs', type=int, default=20,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
     
     # optimizer
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
-    parser.add_argument('--scheduler_steps', default=50, help='muss noch richtiger wert gefunden werden')
+    parser.add_argument('--scheduler_steps', default=50)
     parser.add_argument('--clip_max_norm', default=10)
     args = parser.parse_args()
 

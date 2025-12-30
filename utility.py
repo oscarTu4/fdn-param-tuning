@@ -157,6 +157,8 @@ def save_loss(train_loss, valid_loss, output_dir, save_plot=True, filename=''):
     losses['train'] = train_loss
     losses['valid'] = valid_loss
     n_epochs = len(train_loss)
+    print(train_loss)
+    print(valid_loss)
     
     np.save(os.path.join(output_dir, "train_loss.npy"), train_loss)
     np.save(os.path.join(output_dir, "val_loss.npy"), valid_loss)

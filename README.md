@@ -3,29 +3,29 @@
 hier ein kleine Zusammenfassung was was macht in dem Projekt:
 
 -- `train.py`
-    Start und Ende der Operation. Hier wird alles initialisiert und organisiert
-    Hyperparameter werden hier angegeben, Modell gestartet und Ergebnisse/Checkpoints gespeicher
-    Ort für Trainings/Validierungsloops
+    Start und Ende der Operation. Hier wird alles initialisiert und organisiert. 
+    Hyperparameter werden hier angegeben, Modell gestartet und Ergebnisse/Checkpoints gespeichert. 
+    Ort für Trainings/Validierungsloops.
 
 -- `dataset.py`
-    Skript für Laden und Bearbeiten von RIRs
-    Skript liest alle WAV Dateien aus dem angebenen `--path_to_IRS` (auch subordner) und ignoriert den Rest
+    Skript für Laden und Bearbeiten von RIRs. 
+    Skript liest alle WAV Dateien aus dem angebenen `--path_to_IRS` (auch subordner) und ignoriert den Rest. 
 
 -- `fdn.py`
-    Herz des Modells
-    Das hier wird gestartet im Trainingsloop
+    Herz des Modells. 
+    Das hier wird gestartet im Trainingsloop. 
 
 -- `custom_encoder.py`
-    Encoder Logik, hier lernen die Parameter (A, b, c jetzt gerade)
+    Encoder Logik, hier lernen die Parameter (A, b, c im Moment). 
 
 -- `inference.py`
-    hier kommt die Logik für die 'Nutzung' vom Modell, also eigene IR rein, FDN IR raus
+    hier kommt die Logik für die 'Nutzung' vom Modell, also eigene IR rein, FDN IR raus. 
 
 -- `losses.py`
-    Hier sind alle Loss Funktionen gelistet
+    Hier sind alle Loss Funktionen definiert. 
 
 -- `utility.py`
-    Skript mit Hilfsfunktionen
+    Skript mit Hilfsfunktionen. 
 
 
 
@@ -56,7 +56,10 @@ $ python -m pip install -r requirements.txt
 ````bash
 $ python train.py --path_to_datasets
 ````
-die --arg parameter sind ganz unten in train.py definiert, die kann man auch einfach da in den default Wert schreiben
+
+oder einfach 'play' in vscode. 
+die --arg parameter sind ganz unten in train.py definiert, die kann man auch einfach da in den default Wert schreiben. 
+dann muss man nicht andauernd lästig den pfad im terminal eingeben
 
 training scripts accepts the following args:
 
