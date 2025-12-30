@@ -106,6 +106,9 @@ class FDN(nn.Module):
     def forward(self, A, B, C, delay_lens, N):
         assert A.device == B.device and B.device == C.device, "wie zum fick sind die devices unterschiedlich"
         device = A.device
+        # Force correct shapes
+        B = B.view(N, 1)      # column vector
+        C = C.view(1, N)      # row vector
         
         # Delayline-Puffer (Liste von N Arrays)
         delay_lines = [
@@ -115,16 +118,21 @@ class FDN(nn.Module):
         
         ir_len = int(self.t60*self.fs)
         g = 10**(-3/(self.fs*self.t60))
-        G = torch.diag(g**delay_lens).to(A.dtype).to(device)
+        
+        delay_tensor = torch.tensor(delay_lens, device=device, dtype=A.dtype)
+        G = torch.diag(g ** delay_tensor)
+        #G = torch.diag(g**delay_lens).to(A.dtype).to(device)
 
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
-        print(f"A_g: {A_g}")
+        #print(f"A_g: {A_g}")
         A_g = A_g.to(device)
 
         impulse = torch.zeros((ir_len, C.shape[0]), device=device, dtype=A.dtype)
         impulse[0, :] = 1
+        #print(f"impulse: {impulse}")
 
         output  = torch.zeros((ir_len, 1), device=device, dtype=A.dtype)
+        #print(f"output: {output}")
 
         # Pointer zum Lesen und Schreiben
         write_ptr = torch.zeros(N, dtype=torch.long, device=device)
@@ -151,14 +159,6 @@ class FDN(nn.Module):
         #if torch.isnan(output).any():
         #    print("output is NaN")
         output = torch.nan_to_num(output, nan=0.0, posinf=1e4, neginf=-1e4)
-
-        # normalize amplitude (scale-invariant reverb is fine)
-        max_abs = output.abs().max()
-        if max_abs > 0:
-            output = output / max_abs
-
-        # soft clipping to completely bound gradient
-        output = 0.1 * torch.tanh(output)
 
         return output
 

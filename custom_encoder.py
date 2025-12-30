@@ -41,11 +41,6 @@ class Encoder(nn.Module):
                 conv2d_block(chn_in, chn_out[i], kernel[i], strides[i])
             )
         
-        """self.gru1 = nn.GRU(input_size=128, num_layers=2, hidden_size=64, 
-            batch_first = True, bidirectional=True)
-        self.gru2 = nn.GRU(input_size=7168, num_layers=1, hidden_size=128,
-            batch_first = True, bidirectional=True)"""
-        
         self.gru1 = nn.GRU(
             input_size=128,
             num_layers=2,
@@ -61,7 +56,7 @@ class Encoder(nn.Module):
             bidirectional=True
         )
 
-        self.gru1_norm = nn.LayerNorm(64*2)   # bi-directional
+        self.gru1_norm = nn.LayerNorm(64*2)
         self.gru2_norm = nn.LayerNorm(128*2)
 
         self.lin_depth = 2
@@ -73,12 +68,9 @@ class Encoder(nn.Module):
             )
     
     def forward(self, x):
-        #print(f"x shape at start of encoder forward: {x.shape}")
         b = x.shape[0]
         # convert to log-freq log-mag stft 
         x = torch.log(self.stft(x) + 1e-7)
-
-        #x = torch.clamp(x, min=-12.0, max=2.0)
         
         # add channel dimension 
         x = torch.unsqueeze(x, 1)
@@ -111,15 +103,12 @@ class conv2d_block(nn.Module):
         
         self.norm = nn.InstanceNorm2d(chn_out, affine=True)
         self.act = nn.LeakyReLU(negative_slope=0.1)
-        
-        #nn.init.kaiming_normal_(self.conv2d.weight, nonlinearity="leaky_relu")
-        #self.conv2d.weight.data *= 0.1
 
     def forward(self, x):
         x = self.conv2d(x)
-        #x = self.norm(x)
+        #x = self.norm(x) # optional, weiss noch nicht was das bringt
         #x = self.act(x)
-        x = F.relu(x) # relu or act, nicht beide
+        x = F.relu(x) # relu oder act, nicht beide
         return x 
 
 class linear_block(nn.Module):
