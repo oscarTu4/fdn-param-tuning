@@ -31,11 +31,14 @@ class SingleProjectionLayer(nn.Module):
         super().__init__()
         self.linear = nn.Linear(in_feat, out_feat)
         self.activation = activation
+        
+        #nn.init.zeros_(self.linear.weight)
+        #nn.init.zeros_(self.linear.bias)
 
     def forward(self, x):
-        #x = torch.transpose(x, 2, 1)
+
         x = self.linear(x)
-        # nonlinear activation
+
         if self.activation is not None:
             y = self.activation(x)
         return y
@@ -115,6 +118,7 @@ class FDN(nn.Module):
         G = torch.diag(g**delay_lens).to(A.dtype).to(device)
 
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
+        print(f"A_g: {A_g}")
         A_g = A_g.to(device)
 
         impulse = torch.zeros((ir_len, C.shape[0]), device=device, dtype=A.dtype)
@@ -141,7 +145,7 @@ class FDN(nn.Module):
                 write_ptr[i] = (write_ptr[i] + 1) % delay_lens[i]
                 read_ptr[i]  = (read_ptr[i] + 1) % delay_lens[i]
         
-        # output kann hier NaN werden, das macht einen Fehler in der Loss Funktion und das Training flatlined
+        # output wird hier NaN, das macht einen Fehler in der Loss Funktion und das Training flatlined
         # das hier verhindert NaN fehler in loss funktion, macht aber eig nur random werte
         # problem für später, wird wohl durch richtigen FDN Block gelöst
         #if torch.isnan(output).any():
