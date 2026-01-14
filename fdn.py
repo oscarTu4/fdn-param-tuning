@@ -1,5 +1,3 @@
-import pyfar as pf
-import soundfile as sf
 import pandas as pd
 
 import torch 
@@ -106,7 +104,6 @@ class FDN(nn.Module):
         self.ir_len = int(self.t60*self.fs)
     
     def forward(self, A, B, C, delay_lens, N):
-        assert A.device == B.device and B.device == C.device, "wie zum fick sind die devices unterschiedlich"
         device = A.device
         # Force correct shapes
         B = B.view(N, 1)      # column vector
@@ -125,10 +122,10 @@ class FDN(nn.Module):
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
         A_g = A_g.to(device)
 
-        impulse = torch.zeros((self.ir_len, C.shape[0]), device=device, dtype=A.dtype)
+        impulse = torch.zeros((self.ir_len, C.shape[0]), device=device, dtype=A_g.dtype)
         impulse[0, :] = 1
 
-        output  = torch.zeros((self.ir_len, 1), device=device, dtype=A.dtype)
+        output  = torch.zeros((self.ir_len, 1), device=device, dtype=A_g.dtype)
 
         # Pointer zum Lesen und Schreiben
         write_ptr = torch.zeros(N, dtype=torch.long, device=device)
@@ -224,44 +221,3 @@ def compute_FDN_blk(input,delays,feedbackMatrix,inputGains,outputGains):
         blk_start += blk_size
 
     return output
-
-if __name__ == "__main__":
-    import numpy as np
-    
-    filepath = 'Params/'
-
-    init = False
-    N = 8 # number of delay lines [4, 8, 16, 32]
-    delay_set = 1
-
-    filename = 'param'
-
-    if init == True:
-        filename+='_init'
-
-    filename+= '_N'+str(N)+'_d'+str(delay_set)
-
-    df = pd.read_csv(filepath+filename+'.csv',
-                    delimiter=';',
-                    nrows=N*N,
-                    dtype={'A':np.float32,'m':'Int32'})
-
-    A = df['A'].to_numpy().reshape(N, N)
-    B = df['B'][:N].to_numpy()
-    C = df['C'][:N].to_numpy()
-    delay_lens = df['m'][:N].to_numpy()
-
-    B = B[:,np.newaxis]
-    C = C[np.newaxis,:]
-    
-    output = fdn(delay_lens, N, A, B, C)
-    sf.write("test.wav", output, 48000)
-    
-    fs = 48000
-    times = np.zeros(len(output))
-
-    for i in range(len(output)):
-        times[i] = i/fs
-
-    ir_gen = pf.Signal([output.flatten(),times.flatten()],sampling_rate=fs)
-    print(ir_gen.time.shape)

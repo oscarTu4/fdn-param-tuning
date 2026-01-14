@@ -1,7 +1,8 @@
 __pycache__/
 .DS_Store
 *.asv 
-/output
+/outputs
+/evals
 config_*.py
 /dump
 /data

@@ -157,20 +157,16 @@ def save_loss(train_loss, valid_loss, output_dir, save_plot=True, filename=''):
     losses['train'] = train_loss
     losses['valid'] = valid_loss
     n_epochs = len(train_loss)
-    print(train_loss)
-    print(valid_loss)
     
     np.save(os.path.join(output_dir, "train_loss.npy"), train_loss)
     np.save(os.path.join(output_dir, "val_loss.npy"), valid_loss)
     
     if save_plot:
-        plt.plot(range(1,n_epochs+1), train_loss, label='training')
-        plt.plot(range(1,n_epochs+1), valid_loss, label='validation')
+        plt.plot(range(n_epochs), train_loss, label='training', marker="o")
+        plt.plot(range(n_epochs), valid_loss, label='validation', marker="o")
         plt.legend()
-        plt.xlabel('epoch n')
-        plt.ylabel('loss')
         plt.savefig(os.path.join(output_dir,'losses'+filename+'.pdf'))
-    #scipy.io.savemat(os.path.join(output_dir,'losses'+filename+'.mat'), losses)
+        plt.close()
 
 def to_complex(X):
     return torch.complex(X, torch.zeros_like(X))

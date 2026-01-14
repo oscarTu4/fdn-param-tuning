@@ -12,6 +12,8 @@ from utility import *
 from dataset import load_dataset
 from fdn import DiffFDN
 import pandas as pd
+import numpy as np
+import json
 
 class Trainer:
     # eine wichtige Überlegung wäre das Training über Pytorch Lightning zu machen, 
@@ -35,8 +37,8 @@ class Trainer:
         self.clip_max_norm = args.clip_max_norm
 
         self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr) 
-        #self.criterion = mse_loss().to(device) # mit MSSpectralLoss wird loss NaN, daher erstmal mse bis wir ne lösung haben
-        self.criterion = MSSpectralLoss(sr=args.samplerate).to(device)  # vlt besser als MSE. sparsity macht wohl keinen sinn hier
+        self.criterion = mse_loss().to(device) # mit MSSpectralLoss wird loss NaN, daher erstmal mse bis wir ne lösung haben
+        #self.criterion = MSSpectralLoss(sr=args.samplerate).to(device)  # vlt besser als MSE. sparsity macht wohl keinen sinn hier
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 500, gamma = 10**(-0.2))  # step_size war 50000 das aber vlt sehr sehr hoch, müssen wir testen
 
         #self.normalize() # normalize sollte denke angepasst werden, erstmal rausgenommen damit es läuft. weiss nicht wie wichtig das nicht
@@ -142,9 +144,8 @@ def main(args):
     
     # init neural net
     filepath = 'Params/'
-    N = 4
-    delay_set = 1 
-    filename = 'param' + '_N' + str(N) + '_d' + str(delay_set)
+    N = args.N
+    filename = 'param' + '_N' + str(N) + '_d' + str(args.delay_set)
 
     df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
     #df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float16,'m':'Int16'})
@@ -155,6 +156,7 @@ def main(args):
 
     trainable_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
     print(f"batch size = {args.batch_size} | trainable params = {(trainable_params/1000000):.3f}M")
+    print(f"trainset size: {len(train_dataset.dataset)} | valset size: {len(valid_dataset.dataset)}")
     
     trainer = Trainer(net, args, train_dataset, valid_dataset)
     trainer.train()
@@ -169,11 +171,13 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/ChurchIR")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
-    parser.add_argument('--ir_length', type=float, default=0.2, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
+    parser.add_argument('--ir_length', type=float, default=0.4, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
+    parser.add_argument('--N', type=int, default=8)
+    parser.add_argument('--delay_set', type=int, default=1)
     
     # training
-    parser.add_argument('--batch_size', type=int, default=1, help='batch size')
-    parser.add_argument('--max_epochs', type=int, default=20,  help='maximum number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+    parser.add_argument('--max_epochs', type=int, default=50,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
     
     # optimizer
@@ -186,7 +190,11 @@ if __name__ == '__main__':
     os.makedirs(args.train_dir, exist_ok=True)
 
     # save arguments 
-    with open(os.path.join(args.train_dir, 'args.txt'), 'w') as f:
-        f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
-
+    #with open(os.path.join(args.train_dir, 'args.txt'), 'w') as f:
+    #    f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
+    
+    # save arguments
+    with open(os.path.join(args.train_dir, "args.json"), "w") as f:
+        json.dump(vars(args), f, indent=2, sort_keys=True)
+    
     main(args)

@@ -5,22 +5,7 @@ import numpy as np
 import torch.utils.data as data
 import os
 import tqdm
-
-def pad_crop(ir, sr, target_length):
-    target_samples = int(target_length*sr)
-    if ir.shape[-1] < target_samples:
-        # pad
-        missing_zeros = torch.zeros((ir.shape[0], target_samples - ir.shape[-1]))
-        return torch.cat((ir, missing_zeros), dim=-1)
-    elif ir.shape[-1] > target_samples:
-        # crop
-        return ir[..., :target_samples]
-
-# kopiert von https://github.com/gdalsanto/diff-delay-net.git
-def normalize(x):
-    ''' normalize energy of x to 1 '''
-    energy = (x**2).sum(dim=-1, keepdim=True)
-    return x / torch.sqrt(energy + 1e-8)
+import audio_utility as util
 
 def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float = 1.):
     IRs = {}
@@ -37,7 +22,9 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             
             # sample rate bei bedarf anpassen
             if sr != targetSR:
-                sr = transforms.Resample(sr, targetSR)
+                resample_tf = transforms.Resample(sr, targetSR)
+                ir = resample_tf(ir)
+                sr = targetSR
             
             # erstmal alles mono damit es läuft 
             # kann stereo o.ä. werden, weiss noch nicht obs flexibel geht, tensor shape sieht dementsprechend anders aus bei jedem Datenpunkt
@@ -45,9 +32,9 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
                 ir = ir.mean(dim=0, keepdim=True)
             
             # fixe länge wichtig damit das Modell läuft
-            ir = pad_crop(ir, sr, ir_length)
+            ir = util.pad_crop(ir, sr, ir_length)
             
-            ir = normalize(ir)
+            ir = util.normalize(ir)
             
             label = item.split(".wav")[0]
             IRs[label] = ir

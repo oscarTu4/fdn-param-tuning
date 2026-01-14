@@ -96,4 +96,5 @@ Falls wir Pytorch Lightning benutzen wollen wäre das damit abgedeckt
 ## References
 
 https://github.com/gdalsanto/diff-delay-net.git
+
 https://github.com/gdalsanto/diff-fdn-colorless.git

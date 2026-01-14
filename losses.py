@@ -68,11 +68,11 @@ class MSSpectralLoss(nn.Module):
         for stft in self.stfts:
             Yp = stft(y_pred)
             Yt = stft(y_true)
-            #print(f"Yp: {Yp}")
-            #print(f"Yt: {Yt}")
+            #print(f"Yp nan: {torch.isnan(Yp).any()}")
+            #print(f"Yt nan: {torch.isnan(Yt).any()}")
 
             loss = loss + self.l1loss(Yp, Yt)
-            #print(f"loss: {loss}")
+            print(f"loss: {loss}")
 
         # optional: average over scales
         return loss / len(self.stfts)
