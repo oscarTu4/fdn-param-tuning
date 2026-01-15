@@ -8,3 +8,4 @@ matplotlib
 pandas
 soundfile
 einops
+einops_exts

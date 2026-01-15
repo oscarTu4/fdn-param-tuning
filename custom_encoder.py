@@ -3,14 +3,15 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 from einops import rearrange
-from nnAudio import features
+#from nnAudio import features
+import audio_utility as util
 
 class Encoder(nn.Module):
     def __init__(self, n_fft=1024, sr=48000, overlap=0.875):
         super().__init__()
 
         self.hop_length = int(n_fft*(1-overlap))
-        self.stft = features.stft.STFT(
+        """self.stft = features.stft.STFT(
             n_fft = n_fft,
             hop_length = self.hop_length,
             window = 'hann',
@@ -20,10 +21,15 @@ class Encoder(nn.Module):
             fmax = sr // 2,
             output_format = 'Magnitude',
             verbose=False
-        )
+        )"""
         self.n_fft = n_fft
         self.sr = sr
         self.overlap = overlap
+        
+        self.stft = util.STFT(
+            num_fft=n_fft,
+            hop_length=self.hop_length
+        )
         
         conv_depth = 5
         chn_out = [64, 128, 128, 128, 128]  
@@ -68,27 +74,42 @@ class Encoder(nn.Module):
             )
     
     def forward(self, x):
+        printshapes = False
         b = x.shape[0]
+        if printshapes:
+            print(f"x.shape before stft: {x.shape}")
         # convert to log-freq log-mag stft 
-        x = torch.log(self.stft(x) + 1e-7)
+        #x = torch.log(self.stft(x) + 1e-7)
+        x, _ = self.stft.encode(x)
+        x = torch.log(x+1e-7)
         
         # add channel dimension 
-        x = torch.unsqueeze(x, 1)
+        #x = torch.unsqueeze(x, 1)
+        if printshapes:
+            print(f"x.shape pre downsample: {x.shape}")
 
         for i, module in enumerate(self.conv_list):
             x = module(x)
+            if printshapes:
+                print(f"x.shape after downsample {i+1}: {x.shape}")
         
         x = rearrange(x, 'b c f t -> (b t) f c')
         x, _ = self.gru1(x)
+        if printshapes:
+            print(f"x.shape after gru1: {x.shape}")
         #x = self.gru1_norm(x)
 
         x = rearrange(x, '(b t) f c -> b t (f c)', b=b)
         x, _ = self.gru2(x)
+        if printshapes:
+            print(f"x.shape after gru2: {x.shape}")
         #x = self.gru2_norm(x)
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):
             x = module(x)
+            if printshapes:
+                print(f"x.shape after ll {i}: {x.shape}")
         
         return x
 

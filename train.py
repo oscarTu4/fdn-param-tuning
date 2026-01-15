@@ -1,9 +1,7 @@
 import torch
 import time
-import torchaudio 
 from losses import *
-from utility import *
-from tqdm import trange, tqdm
+from tqdm import tqdm
 
 import time
 import os
@@ -37,8 +35,7 @@ class Trainer:
         self.clip_max_norm = args.clip_max_norm
 
         self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr) 
-        self.criterion = mse_loss().to(device) # mit MSSpectralLoss wird loss NaN, daher erstmal mse bis wir ne lösung haben
-        #self.criterion = MSSpectralLoss(sr=args.samplerate).to(device)  # vlt besser als MSE. sparsity macht wohl keinen sinn hier
+        self.criterion = STFTLoss(sr=args.samplerate).to(device)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 500, gamma = 10**(-0.2))  # step_size war 50000 das aber vlt sehr sehr hoch, müssen wir testen
 
         #self.normalize() # normalize sollte denke angepasst werden, erstmal rausgenommen damit es läuft. weiss nicht wie wichtig das nicht
@@ -102,7 +99,9 @@ class Trainer:
         self.optimizer.zero_grad()
         gt = x.clone() # nur zur sicherheit
         y = self.net(x)
+        #print("train step completed")
         loss = self.criterion(y, gt)
+        #print("loss completed")
         
         if torch.isnan(loss).any():
             print("LOSS IS NAN, TRAINING FLATLINED")
@@ -171,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/ChurchIR")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
-    parser.add_argument('--ir_length', type=float, default=0.4, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
+    parser.add_argument('--ir_length', type=float, default=0.5, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
     parser.add_argument('--N', type=int, default=8)
     parser.add_argument('--delay_set', type=int, default=1)
     

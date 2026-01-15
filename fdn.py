@@ -34,12 +34,11 @@ class SingleProjectionLayer(nn.Module):
         #nn.init.zeros_(self.linear.bias)
 
     def forward(self, x):
-
         x = self.linear(x)
 
         if self.activation is not None:
-            y = self.activation(x)
-        return y
+            x = self.activation(x)
+        return x
 
 # Herz vom Modell
 # TODO eventuell Encoder auch hier mit reinschreiben, bzw. in diese Datei
@@ -59,17 +58,19 @@ class DiffFDN(nn.Module):
         self.encoder = Encoder()
         
         features = 256 # kommt so aus encoder raus. kann angepasst werden, muss aber analog zu encoder passieren
-        self.proj_A = SingleProjectionLayer(features, num_A, nn.Tanh())
-        self.proj_B = SingleProjectionLayer(features, num_B, nn.Tanh())
-        self.proj_C = SingleProjectionLayer(features, num_C, nn.Tanh())
+        self.proj_A = SingleProjectionLayer(features, num_A)
+        self.proj_B = SingleProjectionLayer(features, num_B)
+        self.proj_C = SingleProjectionLayer(features, num_C)
         
     def forward(self, x):
         
         x = self.encoder(x)
+        #print(f"x shape after encoder: {x.shape}")
         
         x = x.mean(dim=1)
-        A = self.proj_A(x)
-        A = A.view(-1, self.N, self.N)
+        #print(f"x shape after mean: {x.shape}")
+        A_g = self.proj_A(x)
+        A_g = A_g.view(-1, self.N, self.N)
         #A = A*0.000001
         
         B = self.proj_B(x)
@@ -80,8 +81,8 @@ class DiffFDN(nn.Module):
         ### fdn muss noch mit batched tensoren funktionieren (oder ist das das block fdn?)
         ### das wichtig
         outputs = []
-        for i in range(A.shape[0]):
-            y_i = self.fdn(A[i], B[i], C[i], self.delay_lens, self.N)
+        for i in range(A_g.shape[0]):
+            y_i = self.fdn(A_g[i], B[i], C[i], self.delay_lens)
             y_i = y_i.transpose(0, 1)
             outputs.append(y_i)
         
@@ -103,29 +104,31 @@ class FDN(nn.Module):
         
         self.ir_len = int(self.t60*self.fs)
     
-    def forward(self, A, B, C, delay_lens, N):
-        device = A.device
+    def forward(self, A_g, B, C, delay_lens):
+        device = B.device
         # Force correct shapes
+        N = len(delay_lens)
         B = B.view(N, 1)      # column vector
         C = C.view(1, N)      # row vector
         
         # Delayline-Puffer (Liste von N Arrays)
         delay_lines = [
-            torch.zeros(delay_lens[i], device=device, dtype=A.dtype)
+            torch.zeros(delay_lens[i], device=device, dtype=B.dtype).detach()
             for i in range(N)
         ]
         
-        g = 10**(-3/(self.fs*self.t60))
+        """g = 10**(-3/(self.fs*self.t60))
         
         G = torch.diag(g**delay_lens).to(A.dtype).to(device)
 
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
-        A_g = A_g.to(device)
+        A_g = A_g.to(device)"""
 
-        impulse = torch.zeros((self.ir_len, C.shape[0]), device=device, dtype=A_g.dtype)
-        impulse[0, :] = 1
+        impulse = torch.zeros((self.ir_len, 1), device=device)
+        impulse[0, 0] = 1.0
 
-        output  = torch.zeros((self.ir_len, 1), device=device, dtype=A_g.dtype)
+        #output  = torch.zeros((self.ir_len, 1), device=device, dtype=A_g.dtype)
+        outputs = []
 
         # Pointer zum Lesen und Schreiben
         write_ptr = torch.zeros(N, dtype=torch.long, device=device)
@@ -136,16 +139,18 @@ class FDN(nn.Module):
             
             for i in range(N):
                 d[i,0] = delay_lines[i][read_ptr[i]]
-            output[n,0] = C @ d
+            #output[n,0] = C @ d
+            outputs.append(C @ d)
             next_input = A_g @ d + B * impulse[n,0]
 
             for i in range(N):
-                delay_lines[i][write_ptr[i]] = next_input[i,0]
+                delay_lines[i][write_ptr[i]] = next_input[i,0].detach()
 
             for i in range(N):
                 write_ptr[i] = (write_ptr[i] + 1) % delay_lens[i]
                 read_ptr[i]  = (read_ptr[i] + 1) % delay_lens[i]
-
+        output = torch.stack(outputs, dim=0)   # [T, 1, 1]
+        output = output.squeeze(-1)            # [T, 1]
         return output
 
 ### das hier checke ich nicht wirklich, darum hab ich erstmal das alte fdn genommen um die Pipeline aufzubauen
