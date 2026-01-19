@@ -12,7 +12,7 @@ def pad_crop(ir, sr, target_length):
     if ir.shape[-1] < target_samples:
         # pad
         missing_zeros = torch.zeros((ir.shape[0], target_samples - ir.shape[-1]))
-        return torch.cat((ir, missing_zeros), dim=-1)
+        return torch.cat((ir, missing_zeros), dim=-1), 
     elif ir.shape[-1] > target_samples:
         # crop
         return ir[..., :target_samples]
@@ -86,29 +86,3 @@ class STFT(nn.Module):
             stft_a, stft_b = magnitude, phase
 
         return rearrange_many((stft_a, stft_b), "(b c) f l -> b c f l", b=b)
-
-    def decode(self, stft_a: Tensor, stft_b: Tensor) -> Tensor:
-        b, l = stft_a.shape[0], stft_a.shape[-1]  # noqa
-        length = closest_power_2(l * self.hop_length)
-
-        stft_a, stft_b = rearrange_many((stft_a, stft_b), "b c f l -> (b c) f l")
-
-        if self.use_complex:
-            real, imag = stft_a, stft_b
-        else:
-            magnitude, phase = stft_a, stft_b
-            real, imag = magnitude * torch.cos(phase), magnitude * torch.sin(phase)
-
-        stft = torch.stack([real, imag], dim=-1)
-
-        wave = torch.istft(
-            stft,
-            n_fft=self.num_fft,
-            hop_length=self.hop_length,
-            win_length=self.window_length,
-            window=self.window,  # type: ignore
-            length=default(self.length, length),
-            normalized=True,
-        )
-
-        return rearrange(wave, "(b c) t -> b c t", b=b)

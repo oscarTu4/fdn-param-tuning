@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 import numpy as np
-from nnAudio import features
 import audio_utility as util
 
 class mse_loss(nn.Module):
@@ -39,9 +38,8 @@ class sparsity_loss(nn.Module):
 class STFTLoss(nn.Module):
     def __init__(self, sr=48000):
         super().__init__()
-        #self.n_fft = [256, 512, 1024, 2048, 4096]
-        self.n_fft = [256]
-        self.overlap = 0.875
+        n_ffts = [256, 512, 1024, 2048, 4096]
+        overlap = 0.875
         self.sr = sr
         self.eps = 1e-6
 
@@ -50,19 +48,8 @@ class STFTLoss(nn.Module):
         #self.loss = nn.CrossEntropyLoss()
 
         self.stfts = nn.ModuleList()
-        for n_fft in self.n_fft:
-            hop = int(n_fft * (1 - self.overlap))
-            """features.stft.STFT(
-                    n_fft=n_fft,
-                    hop_length=hop,
-                    window='hann',
-                    freq_scale='log',
-                    sr=sr,
-                    fmin=20,
-                    fmax=sr // 2,
-                    output_format='Magnitude',
-                    verbose=False,
-            )"""
+        for n_fft in n_ffts:
+            hop = int(n_fft * (1 - overlap))
             self.stfts.append(
                 util.STFT(
                     num_fft=n_fft,
@@ -80,13 +67,13 @@ class STFTLoss(nn.Module):
         loss = 0.0
 
         for stft in self.stfts:
-            Yp, _ = stft.encode(y_pred)
+            Yp, _ = stft.encode(y_pred) # nur magnitude wird aktuell trainiert
             Yt, _ = stft.encode(y_true)
 
             loss += self.loss(Yp, Yt)
             #loss += self.loss(y_pred, y_true)
 
-        print(f"loss: {loss}")
+        #print(f"loss: {loss}")
         # optional: average over scales
         return loss / len(self.stfts)
 

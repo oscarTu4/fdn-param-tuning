@@ -36,6 +36,8 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             
             ir = util.normalize(ir)
             
+            t60 = ir.shape[-1]
+            
             label = item.split(".wav")[0]
             IRs[label] = ir
     

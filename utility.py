@@ -1,10 +1,6 @@
 import torch
-import torchaudio
 import numpy as np
 import os
-import time
-import shutil
-import uuid
 import scipy.io
 import matplotlib.pylab as plt
 import json
@@ -133,7 +129,7 @@ def get_str_results(epoch=None, train_loss=None, valid_loss=None, time=None, los
         to_print += '- train_loss: {:6.4f} '.format(train_loss[-1])
                         
     if valid_loss is not None:
-        to_print += '- test_loss: {:6.4f} '.format(valid_loss[-1])
+        to_print += '- valid_loss: {:6.4f} '.format(valid_loss[-1])
 
     if time is not None:
         to_print += '- time: {:6.4f} s'.format(time)

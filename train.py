@@ -14,9 +14,6 @@ import numpy as np
 import json
 
 class Trainer:
-    # eine wichtige Überlegung wäre das Training über Pytorch Lightning zu machen, 
-    # das macht das Speichern/Laden von Checkpoints wesentlich einfacher falls unser Modell gross wird
-    # und macht auch das zeigen von Infos (Modelgrösse, Parameter usw) angenehmer
     def __init__(self, net, args, train_dataset, valid_dataset):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         self.net = net
@@ -30,9 +27,9 @@ class Trainer:
         self.train_dataset = train_dataset
         self.valid_dataset = valid_dataset
         
-        self.steps = 0 # falls checkpoint geladen wird muss das hier geändert werden, pytorch lightning macht das automatisch
+        self.steps = 0 # falls checkpoint geladen wird muss das hier geändert werden
         self.scheduler_steps = args.scheduler_steps
-        self.clip_max_norm = args.clip_max_norm
+        #self.clip_max_norm = args.clip_max_norm
 
         self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr) 
         self.criterion = STFTLoss(sr=args.samplerate).to(device)
@@ -97,7 +94,7 @@ class Trainer:
     def train_step(self, x):
         # batch processing
         self.optimizer.zero_grad()
-        gt = x.clone() # nur zur sicherheit
+        gt = x.clone()
         y = self.net(x)
         #print("train step completed")
         loss = self.criterion(y, gt)
@@ -108,7 +105,7 @@ class Trainer:
             exit()
         
         loss.backward()
-        nn.utils.clip_grad_norm_(self.net.parameters(), self.clip_max_norm)
+        #nn.utils.clip_grad_norm_(self.net.parameters(), self.clip_max_norm)
         self.optimizer.step()
         
         return loss.item()
@@ -147,11 +144,10 @@ def main(args):
     filename = 'param' + '_N' + str(N) + '_d' + str(args.delay_set)
 
     df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
-    #df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float16,'m':'Int16'})
     delay_lens = torch.from_numpy(df['m'][:N].to_numpy())
     
     net = DiffFDN(delay_lens, args.samplerate, args.ir_length)
-    net.apply(weights_init_normal) # weiss nich ob wir das hier brauchen, aber denke schon
+    #net.apply(weights_init_normal) # weiss nich ob wir das hier brauchen
 
     trainable_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
     print(f"batch size = {args.batch_size} | trainable params = {(trainable_params/1000000):.3f}M")
@@ -170,8 +166,8 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/ChurchIR")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
-    parser.add_argument('--ir_length', type=float, default=0.5, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
-    parser.add_argument('--N', type=int, default=8)
+    parser.add_argument('--ir_length', type=float, default=0.3, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
+    parser.add_argument('--N', type=int, default=16)
     parser.add_argument('--delay_set', type=int, default=1)
     
     # training
@@ -180,17 +176,13 @@ if __name__ == '__main__':
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
     
     # optimizer
-    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.0001, help='learning rate')
     parser.add_argument('--scheduler_steps', default=50)
-    parser.add_argument('--clip_max_norm', default=10)
+    #parser.add_argument('--clip_max_norm', default=10)
     args = parser.parse_args()
 
     args.train_dir = os.path.join('outputs', time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(args.train_dir, exist_ok=True)
-
-    # save arguments 
-    #with open(os.path.join(args.train_dir, 'args.txt'), 'w') as f:
-    #    f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
     
     # save arguments
     with open(os.path.join(args.train_dir, "args.json"), "w") as f:

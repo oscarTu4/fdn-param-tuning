@@ -1,28 +1,27 @@
-import pandas as pd
-
 import torch 
 import torch.nn as nn
-import torch.nn.utils.parametrize as parametrize
 
 from custom_encoder import Encoder
 
 # inspiriert von https://github.com/gdalsanto/diff-delay-net.git
-class DoubleProjectionLayer(nn.Module):
-    def __init__(self, in_features1, in_features2, activation = None):
+class MultiLinearProjectionLayer(nn.Module):
+    def __init__(self, features1, features2, num_Params, chn_out, activation = None):
         super().__init__()
-        self.linear1 = nn.Linear(in_features1[0], in_features1[1])
-        self.linear2 = nn.Linear(in_features2[0], in_features2[1])
+        self.linear1 = nn.Linear(features1, num_Params)
+        self.linear2 = nn.Linear(features2, chn_out)
         self.activation = activation
 
     def forward(self, x):
-        #x = torch.transpose(x, 2, 1)
+        x = torch.transpose(x, 1, 2)
         x = self.linear1(x)
+        #print(f"x.shape after linear1: {x.shape}")
         x = torch.transpose(x, 2, 1)
-        y = self.linear2(x)
+        x = self.linear2(x)
+        #print(f"x.shape post linear2: {x.shape}")
         # nonlinear activation
         if self.activation is not None:
-            y = self.activation(y)
-        return y
+            x = self.activation(x)
+        return x
 
 class SingleProjectionLayer(nn.Module):
     def __init__(self, in_feat, out_feat, activation = None):
@@ -41,41 +40,43 @@ class SingleProjectionLayer(nn.Module):
         return x
 
 # Herz vom Modell
-# TODO eventuell Encoder auch hier mit reinschreiben, bzw. in diese Datei
 class DiffFDN(nn.Module):
     def __init__(self, delay_lens, sr: int = 48000, ir_length: float = 1.):
         super().__init__()
 
         self.delay_lens = delay_lens
-        self.ir_length = ir_length
         self.N = len(delay_lens)
         
         num_A = self.N*self.N
-        num_B = self.N
-        num_C = self.N
+        #num_B = self.N
+        num_BC = self.N
         
         self.fdn = FDN(sr=sr, ir_length=ir_length)
-        self.encoder = Encoder()
+        self.encoder = Encoder()#n_fft=512, overlap=0.5)
         
-        features = 256 # kommt so aus encoder raus. kann angepasst werden, muss aber analog zu encoder passieren
-        self.proj_A = SingleProjectionLayer(features, num_A)
-        self.proj_B = SingleProjectionLayer(features, num_B)
-        self.proj_C = SingleProjectionLayer(features, num_C)
+        #features = 256
+        #self.proj_B = SingleProjectionLayer(features, num_B)
+        #self.proj_C = SingleProjectionLayer(features, num_C)
+        
+        shape = [17, 256] # [T, F] shape die aus dem encoder rauskommt. batch hier nicht wichtig, muss aber beachtet werden
+        self.proj_A = SingleProjectionLayer(shape[1], num_A)
+        self.proj_BC = MultiLinearProjectionLayer(shape[0], shape[1], num_Params=2, chn_out=num_BC)
         
     def forward(self, x):
         
         x = self.encoder(x)
         #print(f"x shape after encoder: {x.shape}")
+
+        BC = self.proj_BC(x)
+        B, C = BC[:, 0, :], BC[:, 1, :]
         
         x = x.mean(dim=1)
         #print(f"x shape after mean: {x.shape}")
         A_g = self.proj_A(x)
         A_g = A_g.view(-1, self.N, self.N)
-        #A = A*0.000001
         
-        B = self.proj_B(x)
-        
-        C = self.proj_C(x)
+        #B = self.proj_B(x)
+        #C = self.proj_C(x)
         
         ### das hier ist hässlich und langsam 
         ### fdn muss noch mit batched tensoren funktionieren (oder ist das das block fdn?)
@@ -100,7 +101,8 @@ class FDN(nn.Module):
         super().__init__()
         self.skew = Skew()
         self.fs = sr
-        self.t60 = ir_length
+        self.t60 = 3.#ir_length # nicht optimal
+        self.ir_length = ir_length
         
         self.ir_len = int(self.t60*self.fs)
     
@@ -122,7 +124,9 @@ class FDN(nn.Module):
         G = torch.diag(g**delay_lens).to(A.dtype).to(device)
 
         A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
-        A_g = A_g.to(device)"""
+        A_g = A_g.to(device)""" 
+        ### auskommentiert damit A_g trainiert, 
+        ### muss in Inference wieder aktiviert werden um keine reversed IR zu kriegen, auch wenns eigentlich dann falsch ist
 
         impulse = torch.zeros((self.ir_len, 1), device=device)
         impulse[0, 0] = 1.0
@@ -134,7 +138,7 @@ class FDN(nn.Module):
         write_ptr = torch.zeros(N, dtype=torch.long, device=device)
         read_ptr = torch.zeros(N, dtype=torch.long, device=device)
 
-        for n in range(self.ir_len):
+        for n in range(int(self.ir_length*self.fs)): # mal mit ir_length probieren und t60 flexibel/länger
             d = torch.zeros((N,1), dtype=C.dtype, device=device)
             
             for i in range(N):

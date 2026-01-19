@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 from einops import rearrange
+from nnAudio import features
 import audio_utility as util
 
 class Encoder(nn.Module):
@@ -10,6 +11,17 @@ class Encoder(nn.Module):
         super().__init__()
 
         self.hop_length = int(n_fft*(1-overlap))
+        """self.stft = features.stft.STFT(
+            n_fft = n_fft,
+            hop_length = self.hop_length,
+            window = 'hann',
+            freq_scale = 'log',
+            sr = sr,
+            fmin = 20,
+            fmax = sr // 2,
+            output_format = 'Magnitude',
+            verbose=False
+        )"""
         self.n_fft = n_fft
         self.sr = sr
         #self.overlap = overlap
@@ -17,51 +29,46 @@ class Encoder(nn.Module):
         self.stft = util.STFT(
             num_fft=n_fft,
             hop_length=self.hop_length
-        ) #[b c f t]
+        )
         
-        base_chn = 32
-        #chn_multiplier = [1, 2, 2, 2, 2] 
-        chn_multiplier = [1, 2, 4, 6, 8] 
-        kernel = [(7,7), (5,5), (5,5), (5,5), (5,5)]
-        #strides = [(1,2), (2,1), (2,2), (2,2), (1,1)]
-        strides = [(2,2), (4,1), (2,1), (2,2), (1,1)]
+        conv_depth = 5
+        chn_out = [64, 128, 128, 128, 128]  
+        kernel = [(7,5), (5,5), (5,5), (5,5), (5,5)]
+        strides = [(1,2), (2,1), (2,2), (2,2), (1,1)]
         
         self.conv_list = nn.ModuleList([])
-        for i in range(len(chn_multiplier)):
+        for i in range(conv_depth):
             if i == 0:
                 chn_in = 1
             else:
-                #chn_in = chn_out[i-1]
-                chn_in = base_chn*chn_multiplier[i-1]
+                chn_in = chn_out[i-1]
             
             self.conv_list.append(
-                conv2d_block(chn_in, base_chn*chn_multiplier[i], kernel[i], strides[i])
+                conv2d_block(chn_in, chn_out[i], kernel[i], strides[i])
             )
         
         self.gru1 = nn.GRU(
-            input_size=base_chn*chn_multiplier[-1],
+            input_size=128,
             num_layers=2,
-            hidden_size=64, # das hier * 2 (wegen bi) ist output feature dimension
+            hidden_size=64,
             batch_first=True,
             bidirectional=True
         )
         self.gru2 = nn.GRU(
-            input_size=1152, # das hier könnte flexibler rausgeholt werden. produkt aus letzten beiden dimensions aus GRU 1
+            input_size=7168,
             num_layers=1,
-            hidden_size=128, # das hier * 2 (wegen bi) ist output feature dimension
+            hidden_size=128,
             batch_first=True,
             bidirectional=True
         )
 
-        # vlt hilft das hier, linear layer über zeitdimension
-        #self.lin1 = nn.Linear(17, 16)
-        
         self.lin_depth = 2
+        in_feat, out_feat = 256, 256
         self.lin_list = nn.ModuleList([])
         for i in range(self.lin_depth):
-            self.lin_list.append(nn.ModuleList(
-                [linear_block(256, 256)]
-            ))
+            self.lin_list.append(
+                linear_block(in_feat, out_feat)
+            )
     
     def forward(self, x):
         printshapes = False
@@ -87,15 +94,11 @@ class Encoder(nn.Module):
         x = rearrange(x, '(b t) f c -> b t (f c)', b=b)
         x, _ = self.gru2(x)
         if printshapes:
-            print(f"x.shape after gru2: {x.shape}") # final shape [B, T, F]
-        
-        #x = x.permute(0, 2, 1)
-        #x = self.lin1(x)
-        #x = x.permute(0, 2, 1)
+            print(f"x.shape after gru2: {x.shape}")
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):
-            x = module[0](x)
+            x = module(x)
             if printshapes:
                 print(f"x.shape after ll {i}: {x.shape}")
         
