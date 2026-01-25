@@ -20,6 +20,12 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
         elif item.endswith(".wav"):
             ir, sr = torchaudio.load(abs_path)
             
+            t60_samples = ir.shape[-1]
+            gamma = 10 ** (-3 / t60_samples)
+            #print(f"gamma: {gamma}")
+            
+            assert ir is not None
+            
             # sample rate bei bedarf anpassen
             if sr != targetSR:
                 resample_tf = transforms.Resample(sr, targetSR)
@@ -34,12 +40,12 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             # fixe länge wichtig damit das Modell läuft
             ir = util.pad_crop(ir, sr, ir_length)
             
+            assert ir is not None
+            
             ir = util.normalize(ir)
             
-            t60 = ir.shape[-1]
-            
             label = item.split(".wav")[0]
-            IRs[label] = ir
+            IRs[label] = [ir, gamma]
     
     return IRs
         

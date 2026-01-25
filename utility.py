@@ -158,6 +158,7 @@ def save_loss(train_loss, valid_loss, output_dir, save_plot=True, filename=''):
     np.save(os.path.join(output_dir, "val_loss.npy"), valid_loss)
     
     if save_plot:
+        plt.figure()
         plt.plot(range(n_epochs), train_loss, label='training', marker="o")
         plt.plot(range(n_epochs), valid_loss, label='validation', marker="o")
         plt.legend()

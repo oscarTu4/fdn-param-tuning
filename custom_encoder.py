@@ -24,7 +24,7 @@ class Encoder(nn.Module):
         chn_multiplier = [1, 2, 4, 6, 8] 
         kernel = [(7,7), (5,5), (5,5), (5,5), (5,5)]
         #strides = [(1,2), (2,1), (2,2), (2,2), (1,1)]
-        strides = [(2,2), (4,1), (2,1), (2,2), (1,1)]
+        strides = [(2,4), (4,1), (2,1), (1,2), (1,1)]
         
         self.conv_list = nn.ModuleList([])
         for i in range(len(chn_multiplier)):
@@ -46,7 +46,7 @@ class Encoder(nn.Module):
             bidirectional=True
         )
         self.gru2 = nn.GRU(
-            input_size=1152, # das hier könnte flexibler rausgeholt werden. produkt aus letzten beiden dimensions aus GRU 1
+            input_size=22*128, # das hier könnte flexibler rausgeholt werden. produkt aus letzten beiden dimensions aus GRU 1
             num_layers=1,
             hidden_size=128, # das hier * 2 (wegen bi) ist output feature dimension
             batch_first=True,
@@ -54,6 +54,7 @@ class Encoder(nn.Module):
         )
 
         # vlt hilft das hier, linear layer über zeitdimension
+        # die shape kann hier noch optimiert werden damit das modell effizienter läuft (glaube das heisst pruning)
         #self.lin1 = nn.Linear(17, 16)
         
         self.lin_depth = 2
@@ -69,6 +70,7 @@ class Encoder(nn.Module):
         if printshapes:
             print(f"x.shape before stft: {x.shape}")
         x, _ = self.stft.encode(x)  # x is magnitude, _ would be phase
+        #print(f"x std: {torch.std(x, dim=0).mean()}")
         #x = torch.log(x+1e-7)
         
         if printshapes:
@@ -88,10 +90,6 @@ class Encoder(nn.Module):
         x, _ = self.gru2(x)
         if printshapes:
             print(f"x.shape after gru2: {x.shape}") # final shape [B, T, F]
-        
-        #x = x.permute(0, 2, 1)
-        #x = self.lin1(x)
-        #x = x.permute(0, 2, 1)
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):

@@ -1,5 +1,6 @@
 import torch
 from torchaudio import transforms
+import numpy as np
 
 # adaptiert von https://github.com/gdalsanto/diff-delay-net.git
 def normalize(x):
@@ -11,11 +12,21 @@ def pad_crop(ir, sr, target_length):
     target_samples = int(target_length*sr)
     if ir.shape[-1] < target_samples:
         # pad
+        #print("padding")
         missing_zeros = torch.zeros((ir.shape[0], target_samples - ir.shape[-1]))
-        return torch.cat((ir, missing_zeros), dim=-1), 
-    elif ir.shape[-1] > target_samples:
+        return torch.cat((ir, missing_zeros), dim=-1)
+    else:# ir.shape[-1] >= target_samples:
         # crop
+        #print("cropping")
         return ir[..., :target_samples]
+    
+# übernommen von https://github.com/gdalsanto/diff-delay-net.git
+def get_frequency_samples(num):
+    device = device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    angle = torch.linspace(0, 1-1/num, num, device=device)
+    abs = torch.ones(num, device=device)
+    return torch.polar(abs, angle * np.pi)
 
 
 ### folgender Code von Stable Audio übernommen

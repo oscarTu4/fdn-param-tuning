@@ -1,23 +1,26 @@
 import torch 
 import torch.nn as nn
+import torch.nn.functional as F
+from einops import rearrange
 
 from custom_encoder import Encoder
+import audio_utility as util
 
 # inspiriert von https://github.com/gdalsanto/diff-delay-net.git
 class MultiLinearProjectionLayer(nn.Module):
-    def __init__(self, features1, features2, num_Params, chn_out, activation = None):
+    def __init__(self, features1, features2, num_out_params, chn_out, activation = None):
         super().__init__()
-        self.linear1 = nn.Linear(features1, num_Params)
+        self.linear1 = nn.Linear(features1, num_out_params)
         self.linear2 = nn.Linear(features2, chn_out)
         self.activation = activation
 
     def forward(self, x):
         x = torch.transpose(x, 1, 2)
         x = self.linear1(x)
-        #print(f"x.shape after linear1: {x.shape}")
+
         x = torch.transpose(x, 2, 1)
         x = self.linear2(x)
-        #print(f"x.shape post linear2: {x.shape}")
+
         # nonlinear activation
         if self.activation is not None:
             x = self.activation(x)
@@ -28,9 +31,6 @@ class SingleProjectionLayer(nn.Module):
         super().__init__()
         self.linear = nn.Linear(in_feat, out_feat)
         self.activation = activation
-        
-        #nn.init.zeros_(self.linear.weight)
-        #nn.init.zeros_(self.linear.bias)
 
     def forward(self, x):
         x = self.linear(x)
@@ -47,186 +47,190 @@ class DiffFDN(nn.Module):
         self.delay_lens = delay_lens
         self.N = len(delay_lens)
         
-        num_A = self.N*self.N
-        #num_B = self.N
-        num_BC = self.N
+        self.ir_length = ir_length
+        self.sr = sr
         
-        self.fdn = FDN(sr=sr, ir_length=ir_length)
+        self.num_U = self.N*self.N
+        self.num_BC = self.N
+        self.num_Gamma = self.N
+        
         self.encoder = Encoder()#n_fft=512, overlap=0.5)
         
-        #features = 256
-        #self.proj_B = SingleProjectionLayer(features, num_B)
-        #self.proj_C = SingleProjectionLayer(features, num_C)
+        # shape die aus dem encoder rauskommt. kann nach länge der ir dann noch optimiert werden. 
+        # batch hier nicht wichtig, muss aber beachtet werden
+        # wenn ein fehler wie "shapes cannot be multiplied" kommt, dann muss hier höchstwahrscheinlich die shape geändert werden
+        shape = [224, 256] # [T, F] 
         
-        shape = [17, 256] # [T, F] shape die aus dem encoder rauskommt. batch hier nicht wichtig, muss aber beachtet werden
-        self.proj_A = SingleProjectionLayer(shape[1], num_A)
-        self.proj_BC = MultiLinearProjectionLayer(shape[0], shape[1], num_Params=2, chn_out=num_BC)
+        self.single_proj_U = MultiLinearProjectionLayer(shape[0], shape[1], self.N, self.N)
         
-    def forward(self, x):
+        
+        self.proj_U = nn.ModuleList()
+        self.ortho_force = nn.Sequential(Skew(), MatrixExponential())
+        self.paraFiR = paraunitaryFIR()
+        K = 4
+        for _ in range(K):
+            self.proj_U.append(
+                nn.Sequential(
+                    MultiLinearProjectionLayer(shape[0], shape[1], self.N, self.N),
+                    Skew(),
+                    MatrixExponential()
+                )
+            )
+        #self.U_ds = nn.Linear(self.num_U, self.num_U)
+        
+        self.proj_Gamma = MultiLinearProjectionLayer(
+            shape[0],
+            shape[1],
+            num_out_params=self.N,
+            chn_out=self.N,
+            activation=nn.Sigmoid()
+        )
+        
+        # project Gamma from input gamma to gamma diag
+        #self.proj_Gamma = SingleProjectionLayer(shape[1], self.num_Gamma)
+        #self.proj_Gamma = nn.Linear(self.N, self.N)
+        
+        self.proj_BC = MultiLinearProjectionLayer(
+            shape[0], 
+            shape[1], 
+            num_out_params=2, 
+            chn_out=self.num_BC
+        )
+        
+    ### implementierung von RIR2FDN bis 3.2
+    ### gamma müsste gelernt werden damit Decay was interessanteres macht
+    def forward(self, x, gamma, z):
+        batch_size = x.size()[0]
+        
+        z_N = z.numel()
         
         x = self.encoder(x)
-        #print(f"x shape after encoder: {x.shape}")
 
         BC = self.proj_BC(x)
         B, C = BC[:, 0, :], BC[:, 1, :]
+        B = torch.complex(B, torch.zeros_like(B))
+        C = torch.complex(C, torch.zeros_like(C))
         
-        x = x.mean(dim=1)
-        #print(f"x shape after mean: {x.shape}")
-        A_g = self.proj_A(x)
-        A_g = A_g.view(-1, self.N, self.N)
+        U_list = []
+        for proj in self.proj_U:
+            u = proj(x)
+            u = torch.complex(u, torch.zeros_like(u))
+            U_list.append(u)
+        #print(f"U shape: {U.shape}")
         
-        #B = self.proj_B(x)
-        #C = self.proj_C(x)
         
-        ### das hier ist hässlich und langsam 
-        ### fdn muss noch mit batched tensoren funktionieren (oder ist das das block fdn?)
-        ### das wichtig
-        outputs = []
-        for i in range(A_g.shape[0]):
-            y_i = self.fdn(A_g[i], B[i], C[i], self.delay_lens)
-            y_i = y_i.transpose(0, 1)
-            outputs.append(y_i)
+        ### fixed gamma
+        #gamma = 0.9999
+        ### gamma via conditioning
         
-        y = torch.stack(outputs, dim=0)
-        return y
+        ### für inference/evaluation, dass gamma auch als skalar übergeben werden kann
+        if not torch.is_tensor(gamma):
+            gamma = torch.tensor(gamma)
+
+        if gamma.dim() == 0:
+            gamma = gamma.unsqueeze(0)
+        
+        gamma = gamma.view(-1, 1)
+        m = self.delay_lens.view(1, -1)
+        Gamma = torch.diag_embed(gamma.view(-1,1) ** m)
+        Gamma = Gamma.unsqueeze(1).expand(batch_size, z_N, self.N, self.N)
+        
+        ### gamma via condition + randomizing um filter decay zu simulieren
+        """eps = 1e-3 * torch.randn(batch_size, self.N)
+        eps = F.avg_pool1d(eps.unsqueeze(1), kernel_size=3, stride=1, padding=1).squeeze(1)
+        gamma = gamma.view(-1,1) * (1 + eps)
+        m = self.delay_lens.view(1, -1)
+        Gamma = torch.diag_embed(gamma ** m)
+        Gamma = Gamma[:, None].expand(batch_size, z_N, self.N, self.N)"""
+        
+        ### gamma via projection, könnte ansatz sein um gamma learnable zu machen
+        """x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True)+1e-6)
+        gamma = self.proj_Gamma(x)
+        gamma = torch.diagonal(gamma, dim1=-2, dim2=-1)
+
+        Gamma = torch.diag_embed(gamma)                   # [B, N, N]
+        Gamma = Gamma[:, None].expand(batch_size, z_N, self.N, self.N)"""
+
+        Gamma = torch.complex(Gamma, torch.zeros_like(Gamma))
+        
+        # H(z) = T (z)c⊤ I − U (z)Γ(z)Dm(z)]−1U (z)Γ(z)b + D(z)
+        B = B.unsqueeze(-1).unsqueeze(1).expand(-1, z_N, -1, -1)
+        C = C.unsqueeze(1).unsqueeze(2).expand(-1, z_N, -1, -1)
+        
+        #print(B)
+        #print(C)
+        
+        I = torch.eye(self.N, dtype=Gamma.dtype).unsqueeze(0).unsqueeze(0)
+        I = I.expand(batch_size, z_N, self.N, self.N)
+        
+        #D_m = torch.diag_embed(z.view(1, F, 1) ** (-self.delay_lens.view(1, 1, self.N)))   ### chatgpt sag -m, checke nicht ganz warum
+        #D_m = D_m.expand(batch_size, F, self.N, self.N)
+        
+        U_z = self.paraFiR(U_list, z, self.delay_lens)
+        
+        dtype = torch.complex64
+        U_z = U_z.to(dtype)
+        Gamma = Gamma.to(dtype)
+        I = I.to(dtype)
+        
+        Klammer = torch.linalg.inv(I - U_z @ Gamma)# @ D_m)
+        cKlammer = C @ Klammer
+        H1 = cKlammer @ U_z
+        H2 = Gamma @ B
+        H = H1 @ H2 # Übertragungsfunktion in Frequenzdarstellung
+        H  = H.squeeze(-1).squeeze(-1)
+        ir = torch.fft.irfft(H, n=int(self.ir_length*self.sr))
+
+        return ir.unsqueeze(1), U_z#, H
+        
+        # ARPnet Formel
+        # H(z)=T(z)*b@(D-A)@c  #A=U@gamma
+        """gamma = 0.9999
+        gamma = torch.diag_embed(gamma**self.delay_lens)
+        gamma = torch.complex(gamma, torch.zeros_like(gamma))
+        U = self.single_proj_U(x)
+        U = torch.complex(U, torch.zeros_like(U))
+        A = torch.matmul(U, gamma).unsqueeze(1)
+        
+        D = torch.diag_embed(z.unsqueeze(-1)  ** (self.delay_lens))
+        D = D.unsqueeze(0).expand(batch_size, -1, -1, -1)
+        
+        Klammer = torch.linalg.inv(D - A)
+        B = B.unsqueeze(1).unsqueeze(-1)
+        B = B.expand(-1, Klammer.shape[1], -1, -1)
+        
+        C = C.unsqueeze(1).unsqueeze(2)
+        C = C.expand(-1, Klammer.shape[1], -1, -1)
+        
+        Db = Klammer @ B
+        H = (C @ Db).squeeze(-1).squeeze(-1)
+        
+        ir = torch.fft.irfft(H, n=int(self.ir_length*self.sr))
+        return ir.unsqueeze(1), U"""
+
+class paraunitaryFIR(nn.Module):
+    ### nach RIR2FDN
+    def forward(self, U_list, z, m):
+        batch_size, N, _ = U_list[0].shape
+        F = z.numel()
+        U_z = torch.eye(N, dtype=z.dtype)
+        U_z = U_z.unsqueeze(0).unsqueeze(0)
+        U_z = U_z.expand(batch_size, F, N, N)
+        
+        D_m = torch.diag_embed(z.view(1, F, 1) ** (-m.view(1, 1, N)))   ### chatgpt sag -m, checke nicht ganz warum aber funktioniert wohl
+        D_m = D_m.expand(batch_size, F, N, N)
+        
+        for U in U_list:
+            U = U.unsqueeze(1).expand(batch_size, F, N, N)
+            U_z = U_z @ D_m @ U
+        
+        return U_z
 
 class Skew(nn.Module):
     def forward(self, X):
         X = X.triu(1)
         return X - X.transpose(-1, -2)
 
-### Simons Code als nn Module, numpy musste mit torch ersetzt werden
-class FDN(nn.Module):
-    def __init__(self, sr=48000, ir_length=1.):
-        super().__init__()
-        self.skew = Skew()
-        self.fs = sr
-        self.t60 = 3.#ir_length # nicht optimal
-        self.ir_length = ir_length
-        
-        self.ir_len = int(self.t60*self.fs)
-    
-    def forward(self, A_g, B, C, delay_lens):
-        device = B.device
-        # Force correct shapes
-        N = len(delay_lens)
-        B = B.view(N, 1)      # column vector
-        C = C.view(1, N)      # row vector
-        
-        # Delayline-Puffer (Liste von N Arrays)
-        delay_lines = [
-            torch.zeros(delay_lens[i], device=device, dtype=B.dtype).detach()
-            for i in range(N)
-        ]
-        
-        """g = 10**(-3/(self.fs*self.t60))
-        
-        G = torch.diag(g**delay_lens).to(A.dtype).to(device)
-
-        A_g = torch.linalg.matrix_exp(self.skew(A)) @ G  # Feedback Matrix mit Dämpfung 
-        A_g = A_g.to(device)""" 
-        ### auskommentiert damit A_g trainiert, 
-        ### muss in Inference wieder aktiviert werden um keine reversed IR zu kriegen, auch wenns eigentlich dann falsch ist
-
-        impulse = torch.zeros((self.ir_len, 1), device=device)
-        impulse[0, 0] = 1.0
-
-        #output  = torch.zeros((self.ir_len, 1), device=device, dtype=A_g.dtype)
-        outputs = []
-
-        # Pointer zum Lesen und Schreiben
-        write_ptr = torch.zeros(N, dtype=torch.long, device=device)
-        read_ptr = torch.zeros(N, dtype=torch.long, device=device)
-
-        for n in range(int(self.ir_length*self.fs)): # mal mit ir_length probieren und t60 flexibel/länger
-            d = torch.zeros((N,1), dtype=C.dtype, device=device)
-            
-            for i in range(N):
-                d[i,0] = delay_lines[i][read_ptr[i]]
-            #output[n,0] = C @ d
-            outputs.append(C @ d)
-            next_input = A_g @ d + B * impulse[n,0]
-
-            for i in range(N):
-                delay_lines[i][write_ptr[i]] = next_input[i,0].detach()
-
-            for i in range(N):
-                write_ptr[i] = (write_ptr[i] + 1) % delay_lens[i]
-                read_ptr[i]  = (read_ptr[i] + 1) % delay_lens[i]
-        output = torch.stack(outputs, dim=0)   # [T, 1, 1]
-        output = output.squeeze(-1)            # [T, 1]
-        return output
-
-### das hier checke ich nicht wirklich, darum hab ich erstmal das alte fdn genommen um die Pipeline aufzubauen
-class FeedbackDelay:
-
-    def __init__(self,max_block_size,delays):
-        self.delays = delays 
-        self.N = len(delays)
-        self.values = np.zeros((np.max(delays)+max_block_size,self.N))
-        self.pointers = np.zeros(self.N,dtype=int)
-    
-    def getIndex(self,blk_size):
-
-        row_idx = self.pointers + np.arange(blk_size)[:, None]
-        # wrap around when  row_idx > delay line length 
-        row_idx = row_idx % self.delays 
-
-        col_idx = np.arange(self.N)[None, :] 
-        
-        return row_idx,col_idx
-    
-    def getValues(self,blockSize):
-        return self.values[self.getIndex(blockSize)]
-        
-    # def mod_delay(self,idxs):
-    #     idxs = idxs - (idxs > self.delays) * self.delays
-    #     return idxs
-    
-    def setValues(self,val):
-        blk_size = val.shape[0]
-        self.values[self.getIndex(blk_size)] = val
-    
-    def next(self,blockSize): # Pointer weiterschieben Ring Buffer 
-        self.pointers = (self.pointers + blockSize) % self.delays
-
-
-def compute_FDN_blk(input,delays,feedbackMatrix,inputGains,outputGains):
-
-    maxBlockSize = 2**12
-    blk_size = min([min(delays), maxBlockSize])
-
-    DelayFilters = FeedbackDelay(maxBlockSize,delays)
-
-    input_len = input.shape[0]
-    output = np.zeros((input_len,outputGains.shape[0]))
-
-    blk_start = 0
-
-    while blk_start < input_len:
-        if(blk_start + blk_size < input_len):
-            blk_pos = np.arange(blk_start,blk_start+blk_size)
-        else: # last block 
-            blk_pos = np.arange(blk_start,input_len-blk_size)
-
-        blk = input[blk_pos,:]
-
-        if blk.shape[0] == 0:
-            break
-
-        # ... process block ...
-        delay_output = DelayFilters.getValues(blk_size)
-
-        feedback = delay_output @ feedbackMatrix.T
-
-        delay_line_input = blk @ inputGains.T + feedback
-
-        DelayFilters.setValues(delay_line_input)
-
-        output[blk_pos, :] = delay_output @ outputGains.T
-
-        DelayFilters.next(blk_size)
-
-        blk_start += blk_size
-
-    return output
+class MatrixExponential(nn.Module):
+    def forward(self, X):
+        return torch.matrix_exp(X)

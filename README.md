@@ -39,7 +39,7 @@ Follow steps 1-5 to get training started
 git clone https://github.com/oscarTu4/fdn-param-tuning.git
 ```
 
-2. Create conda (oder was auch immer) environment to install required packages (python 3.11 funktioniert gut) and activate
+2. Create conda environment to install required packages and activate
 
 ```bash
 $ conda create -n dla-fdn python=3.11
@@ -49,6 +49,12 @@ $ conda activate dla-fdn
 3. Install required packages
 ````bash
 $ python -m pip install -r requirements.txt
+````
+
+on Windows you might need to do:
+````bash
+$ pip install torchcodec
+$ conda install "ffmpeg<8"
 ````
 
 4. Run training script `train.py`
