@@ -39,13 +39,15 @@ class SingleProjectionLayer(nn.Module):
             x = self.activation(x)
         return x
 
+
 # Herz vom Modell
 class DiffFDN(nn.Module):
-    def __init__(self, delay_lens, sr: int = 48000, ir_length: float = 1.):
+    def __init__(self, delay_lens, z, sr: int = 48000, ir_length: float = 1.,):
         super().__init__()
 
         self.delay_lens = delay_lens
         self.N = len(delay_lens)
+        self.z = z
         
         self.ir_length = ir_length
         self.sr = sr
@@ -59,7 +61,7 @@ class DiffFDN(nn.Module):
         # shape die aus dem encoder rauskommt. kann nach länge der ir dann noch optimiert werden. 
         # batch hier nicht wichtig, muss aber beachtet werden
         # wenn ein fehler wie "shapes cannot be multiplied" kommt, dann muss hier höchstwahrscheinlich die shape geändert werden
-        shape = [224, 256] # [T, F] 
+        shape = [84, 256] # [T, F]
         
         self.single_proj_U = MultiLinearProjectionLayer(shape[0], shape[1], self.N, self.N)
         
@@ -76,19 +78,15 @@ class DiffFDN(nn.Module):
                     MatrixExponential()
                 )
             )
-        #self.U_ds = nn.Linear(self.num_U, self.num_U)
         
         self.proj_Gamma = MultiLinearProjectionLayer(
             shape[0],
             shape[1],
-            num_out_params=self.N,
-            chn_out=self.N,
-            activation=nn.Sigmoid()
+            num_out_params=1,
+            chn_out=1,
         )
         
-        # project Gamma from input gamma to gamma diag
-        #self.proj_Gamma = SingleProjectionLayer(shape[1], self.num_Gamma)
-        #self.proj_Gamma = nn.Linear(self.N, self.N)
+        #self.freqProject = nn.Linear(256, self.z.shape[-1])
         
         self.proj_BC = MultiLinearProjectionLayer(
             shape[0], 
@@ -97,12 +95,14 @@ class DiffFDN(nn.Module):
             chn_out=self.num_BC
         )
         
+        
+        
     ### implementierung von RIR2FDN bis 3.2
     ### gamma müsste gelernt werden damit Decay was interessanteres macht
-    def forward(self, x, gamma, z):
+    def forward(self, x, gamma):
         batch_size = x.size()[0]
         
-        z_N = z.numel()
+        z_N = self.z.numel()
         
         x = self.encoder(x)
 
@@ -124,7 +124,7 @@ class DiffFDN(nn.Module):
         ### gamma via conditioning
         
         ### für inference/evaluation, dass gamma auch als skalar übergeben werden kann
-        if not torch.is_tensor(gamma):
+        """if not torch.is_tensor(gamma):
             gamma = torch.tensor(gamma)
 
         if gamma.dim() == 0:
@@ -133,7 +133,7 @@ class DiffFDN(nn.Module):
         gamma = gamma.view(-1, 1)
         m = self.delay_lens.view(1, -1)
         Gamma = torch.diag_embed(gamma.view(-1,1) ** m)
-        Gamma = Gamma.unsqueeze(1).expand(batch_size, z_N, self.N, self.N)
+        Gamma = Gamma.unsqueeze(1).expand(batch_size, z_N, self.N, self.N)"""
         
         ### gamma via condition + randomizing um filter decay zu simulieren
         """eps = 1e-3 * torch.randn(batch_size, self.N)
@@ -144,13 +144,14 @@ class DiffFDN(nn.Module):
         Gamma = Gamma[:, None].expand(batch_size, z_N, self.N, self.N)"""
         
         ### gamma via projection, könnte ansatz sein um gamma learnable zu machen
-        """x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True)+1e-6)
         gamma = self.proj_Gamma(x)
-        gamma = torch.diagonal(gamma, dim1=-2, dim2=-1)
+        print(f"gamma: {gamma}")
 
-        Gamma = torch.diag_embed(gamma)                   # [B, N, N]
-        Gamma = Gamma[:, None].expand(batch_size, z_N, self.N, self.N)"""
+        Gamma = torch.diag_embed(gamma**self.delay_lens)
+        
+        #Gamma = torch.diag_embed(gamma ** self.delay_lens)
 
+        #######
         Gamma = torch.complex(Gamma, torch.zeros_like(Gamma))
         
         # H(z) = T (z)c⊤ I − U (z)Γ(z)Dm(z)]−1U (z)Γ(z)b + D(z)
@@ -166,7 +167,7 @@ class DiffFDN(nn.Module):
         #D_m = torch.diag_embed(z.view(1, F, 1) ** (-self.delay_lens.view(1, 1, self.N)))   ### chatgpt sag -m, checke nicht ganz warum
         #D_m = D_m.expand(batch_size, F, self.N, self.N)
         
-        U_z = self.paraFiR(U_list, z, self.delay_lens)
+        U_z = self.paraFiR(U_list, self.z, self.delay_lens)
         
         dtype = torch.complex64
         U_z = U_z.to(dtype)

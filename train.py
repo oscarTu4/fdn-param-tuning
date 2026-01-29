@@ -40,14 +40,14 @@ class Trainer:
         self.scheduler_steps = args.scheduler_steps
 
         self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr) 
-        self.criterion = STFTLoss(sr=args.samplerate).to(device)
+        #self.criterion = STFTLoss(sr=args.samplerate).to(device)
+        self.criterion = mse_loss()
         ### TODO spectral+sparsity loss implementieren wenn wir nach RIR2FDN vorgehen
         #self.criterion = [STFTLoss(sr=args.samplerate), sparsity_loss()]
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 500, gamma = 10**(-0.2))  # step_size war 50000 das aber vlt sehr sehr hoch, müssen wir testen
 
         #self.normalize() # normalize sollte denke angepasst werden, erstmal rausgenommen damit es läuft. weiss nicht wie wichtig das nicht
         
-        self.z = get_frequency_samples(int(args.ir_length*args.samplerate))
         self.alpha = 2  # temporal loss scaling factor
         
         # for eval
@@ -96,7 +96,8 @@ class Trainer:
             et_epoch = time.time()
 
             self.print_results(epoch, et_epoch-st_epoch)
-            self.save_model(epoch)
+            if epoch % 10 == 0:
+                self.save_model(epoch)
             
             # loss plotten/speicher. kann auch öfter/seltener gemacht werden (mit lightning geht das auch gut)
             save_loss(self.train_loss, self.valid_loss, self.train_dir, save_plot=True)
@@ -111,7 +112,7 @@ class Trainer:
         input = x[0]
         gamma = x[1]
         
-        y, U = self.net(input, gamma, self.z)
+        y, U = self.net(input, gamma)
         
         #print(f"y shape: {y.shape}")
         #print(f"gt shape: {gt.shape}")
@@ -130,7 +131,7 @@ class Trainer:
         input = x[0]
         gamma = x[1]
         
-        y, U = self.net(input, gamma, self.z) # z vielleicht auch aus ir selbst holen? so wie es jetzt ist könnte falsch sein
+        y, U = self.net(input, gamma) # z vielleicht auch aus ir selbst holen? so wie es jetzt ist könnte falsch sein
         #loss = self.criterion[0](y, gt) + self.alpha*self.criterion[1](self.net.ortho_force(U))
         loss = self.criterion(y, gt)
         return loss.item()
@@ -152,8 +153,7 @@ class Trainer:
             os.path.join(dir_path, 'model_e' + str(e) + '.pt'))
     
     def evaluate(self, epoch):
-        random.seed(42)
-        # muss angepasst werden 
+        random.seed()
         eval_path = "/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/eval"
         eval_paths = [f for f in os.listdir(eval_path) if f.endswith(".wav")]
         eval_files = random.sample(eval_paths, 5)
@@ -178,7 +178,7 @@ class Trainer:
                 if eval_ir.ndim == 2:        # [C, T] zu [B, C, T]
                     eval_ir = eval_ir.unsqueeze(0)
 
-                pred, _ = self.net(eval_ir, gamma, z)
+                pred, _ = self.net(eval_ir, gamma)#, z)
 
                 save_path = f"{self.train_dir}/evaluation" #/epoch{epoch}"
                 os.makedirs(save_path, exist_ok=True)
@@ -186,7 +186,7 @@ class Trainer:
                 # plot
                 #pred_np = util.normalize(pred)
                 pred_np = pred.squeeze(0).squeeze(0).detach().cpu().numpy()
-                eval_np = eval_ir.squeeze(0).detach().cpu().numpy()
+                #eval_np = eval_ir.squeeze(0).detach().cpu().numpy()
                 
                 #pred_real = np.abs(pred_np).astype(np.float32)
 
@@ -219,7 +219,8 @@ def main(args):
     df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
     delay_lens = torch.from_numpy(df['m'][:N].to_numpy())
     
-    net = DiffFDN(delay_lens, args.samplerate, args.ir_length)
+    z = get_frequency_samples(int(args.ir_length*args.samplerate))
+    net = DiffFDN(delay_lens, z, args.samplerate, args.ir_length)
     #net.apply(weights_init_normal) # weiss nich ob wir das hier brauchen
 
     trainable_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
@@ -236,10 +237,10 @@ if __name__ == '__main__':
     parser.add_argument('--samplerate', type=int, default=48000, help ='sample rate')
     
     # dataset 
-    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train/ChurchIR")
+    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
-    parser.add_argument('--ir_length', type=float, default=5., help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
+    parser.add_argument('--ir_length', type=float, default=2., help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
     parser.add_argument('--N', type=int, default=8)
     parser.add_argument('--delay_set', type=int, default=1)
     

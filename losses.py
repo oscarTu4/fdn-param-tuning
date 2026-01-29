@@ -12,6 +12,19 @@ class sparsity_loss(nn.Module):
     def forward(self, y_pred, y_true):
         raise NotImplementedError
 
+class mse_loss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.loss = nn.MSELoss()
+    def forward(self, y_pred, y_true):
+        y_pred_freq = torch.fft.rfft(y_pred)
+        y_true_freq = torch.fft.rfft(y_true)
+
+        time_loss = self.loss(y_pred, y_true)
+        freq_loss = self.loss(torch.abs(y_pred_freq), torch.abs(y_true_freq))
+
+        return time_loss + freq_loss
+
 class STFTLoss(nn.Module):
     def __init__(self, sr=48000):
         super().__init__()
