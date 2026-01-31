@@ -17,9 +17,9 @@ class rirDataset(Dataset):
         # make list of all filenames enclosed in args.path
         pathlist = [y for x in os.walk(args.path_to_IRs) for y in glob(os.path.join(x[0], '*.wav'))]
         shuffle(pathlist)
-        # select subset 
-        #if args.len_dataset is not None:
-        #    pathlist = pathlist[:args.len_dataset]
+        # select subset
+        if args.len_dataset is not None:
+            pathlist = pathlist[:args.len_dataset]
         print("Loading RIRs to {}".format(get_device()))
         self.data_loaded = []
         st = time()

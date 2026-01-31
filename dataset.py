@@ -77,7 +77,11 @@ def split_dataset(dataset, split):
     return train_set, valid_set
 
 def load_dataset(args):
-    dataset = Dataset(path_to_IRs=args.path_to_IRs, samplerate = args.samplerate, ir_length = args.rir_length)
+    dataset = Dataset(
+        path_to_IRs=args.path_to_IRs, 
+        samplerate = args.samplerate, 
+        ir_length = args.rir_length,
+    )
     train_set, valid_set = split_dataset(dataset, args.split)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

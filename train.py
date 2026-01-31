@@ -37,7 +37,7 @@ class Trainer:
         self.steps = 0 # falls checkpoint geladen wird muss das hier geändert werden
         self.scheduler_steps = args.scheduler_steps
 
-        self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr) 
+        self.optimizer = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4) 
         self.criterion = MSSpectralLoss()
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 50000, gamma = 10**(-0.2))
 
@@ -68,7 +68,7 @@ class Trainer:
             for _, input in enumerate(pbar):
                 target = input.clone()
                 self.optimizer.zero_grad()
-                estimate, _, _ = self.net(input, self.x)  # get estimate
+                estimate, H, _, _ = self.net(input, self.x)  # get estimate
 
                 loss = self.criterion(estimate, target) # compute loss
                 epoch_loss += loss.item()
@@ -105,7 +105,7 @@ class Trainer:
                 input = data
                 target = input.clone()
                 self.optimizer.zero_grad()
-                estimate, _, _ = self.net(input, self.x)
+                estimate, H, _, _ = self.net(input, self.x)
                 # apply loss
                 loss = self.criterion(estimate, target)
                 epoch_loss += loss.item() 
@@ -125,7 +125,7 @@ class Trainer:
             # loss plotten/speicher. kann auch öfter/seltener gemacht werden (mit lightning geht das auch gut)
             save_loss(self.train_loss, self.valid_loss, self.train_dir, save_plot=True)
             
-            test_ir_out, _, _ = self.net(self.test_batch, self.x)
+            test_ir_out, H, _, _ = self.net(self.test_batch, self.x)
             write_audio(test_ir_out[0,:].detach(), 
                         os.path.join(self.train_dir, 'audio_output'),
                         #'e{:04d}-output-ir-loss{:.3f}.wav'.format(epoch, self.criterion(test_ir_out[0,:], self.test_batch[0,:])))
@@ -262,7 +262,7 @@ if __name__ == '__main__':
     parser.add_argument('--samplerate', type=int, default=48000, help ='sample rate')
     
     # dataset 
-    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train")
+    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train/raw_rirs")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
     parser.add_argument('--rir_length', type=float, default=1.8, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")

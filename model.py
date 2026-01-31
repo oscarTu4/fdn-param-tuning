@@ -27,10 +27,6 @@ class Encoder(nn.Module):
             output_format = 'Magnitude',
             verbose=False
         )
-        """self.stft = STFT(
-            num_fft=n_fft,
-            hop_length=hop_length
-        )"""
         self.conv_depth = 5
         self.chn_out = [64, 128, 128, 128, 128]  
         self.kernel = [(7,5), (5,5), (5,5), (5,5), (5,5)]
@@ -154,9 +150,9 @@ class ASPestNet(nn.Module):
         self.d = delay_lengths
         self.ir_length = ir_length
         
-        self.encoder = Encoder()
-        #self.encoder = CustomEncoder()
-        self.enc_outp_shape = [76, 256]
+        #self.encoder = Encoder()
+        self.encoder = CustomEncoder()
+        self.enc_outp_shape = [80, 256] ### [76, 256] mit Encoder, [74, 256] mit CustomEncoder
         self.sigmoid = nn.Sigmoid()
         z1, z2 = 1, 8
         self.sr = 48000
@@ -269,7 +265,7 @@ class ASPestNet(nn.Module):
         # h0 = F.pad(h0, (0, self.ir_length-h0.size(dim=1)))*0
         # ir = (h0 + ir_late[:,:self.ir_length])
         ir = ir_late[:,:self.ir_length]
-        return ir, ir_late, torch.zeros(1)
+        return ir, H, ir_late, torch.zeros(1)
     
     def get_filters(self, x, z):
         x = self.encoder(x) # out: [bs, 109, 256]

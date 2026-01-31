@@ -27,47 +27,35 @@ class CustomEncoder(nn.Module):
         ) #[b c f t]
         
         base_chn = 32
-        #chn_multiplier = [1, 2, 2, 2, 2] 
-        chn_multiplier = [1, 2, 4, 6, 8] 
+        """chn_multiplier = [1, 2, 4, 6, 8] 
         kernel = [(7,7), (5,5), (5,5), (5,5), (5,5)]
-        #strides = [(1,2), (2,1), (2,2), (2,2), (1,1)]
-        strides = [(2,4), (4,1), (2,1), (1,2), (1,1)]
+        strides = [(2,4), (4,1), (2,1), (1,2), (1,1)]"""
+        chn_multiplier = [1, 2, 4] 
+        kernel = [(7,7), (5,5), (5,5)]
+        strides = [(2,4), (4,1), (2,2)]
         
         self.conv_list = nn.ModuleList([])
         for i in range(len(chn_multiplier)):
             if i == 0:
                 chn_in = 1
             else:
-                #chn_in = chn_out[i-1]
                 chn_in = base_chn*chn_multiplier[i-1]
             
             self.conv_list.append(
                 conv2d_block(chn_in, base_chn*chn_multiplier[i], kernel[i], strides[i])
             )
         
-        self.gru1 = nn.GRU(
-            input_size=base_chn*chn_multiplier[-1],
-            num_layers=2,
-            hidden_size=64, # das hier * 2 (wegen bi) ist output feature dimension
-            batch_first=True,
-            bidirectional=True
-        )
-        self.gru2 = nn.GRU(
-            input_size=22*128, # das hier könnte flexibler rausgeholt werden. produkt aus letzten beiden dimensions aus GRU 1
-            num_layers=1,
-            hidden_size=128, # das hier * 2 (wegen bi) ist output feature dimension
-            batch_first=True,
-            bidirectional=True
-        )
-        
+        cf = 30*128
         dim = 256
-        self.conf_in_proj = nn.Linear(22*dim, dim)
+        #self.conf_conv_in = nn.Conv1d(cf, dim, kernel_size=3, padding=1)
+        self.conf_lin_in = nn.Linear(cf, dim)
         self.conformer = Conformer(
             input_dim=dim,
             num_heads=8,
             ffn_dim=4*dim,
             num_layers=4,
             depthwise_conv_kernel_size=15,
+            dropout=0.1
         )
         
         self.lin_depth = 2
@@ -94,21 +82,21 @@ class CustomEncoder(nn.Module):
             if printshapes:
                 print(f"x.shape after downsample {i+1}: {x.shape}")
         
-        """x = rearrange(x, 'b c f t -> (b t) f c')
-        x, _ = self.gru1(x)
-        if printshapes:
-            print(f"x.shape after gru1: {x.shape}")
-
-        x = rearrange(x, '(b t) f c -> b t (f c)', b=b)
-        x, _ = self.gru2(x)
-        if printshapes:
-            print(f"x.shape after gru2: {x.shape}") # final shape [B, T, F]"""
+        x = rearrange(x, 'b c f t -> b t (c f)')
+        #x = rearrange(x, 'b c f t -> b (c f) t') # für conv in layer
         
-        x = rearrange(x, 'b c f t -> b t (f c)')
-        x = self.conf_in_proj(x)
+        if printshapes:
+            print(f"x.shape after rearrange: {x.shape}")
+        #x = self.conf_conv_in(x)
+        x = self.conf_lin_in(x)
+        #x = x.transpose(1, 2)
+        if printshapes:
+            print(f"x.shape after conf_conv_in: {x.shape}")
         B, T, _ = x.shape
         lengths = torch.full((B,), T, device=x.device, dtype=torch.long)
         x, _ = self.conformer(x, lengths)
+        if printshapes:
+            print(f"x.shape after conformer: {x.shape}")
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):
