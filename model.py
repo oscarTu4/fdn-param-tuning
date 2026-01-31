@@ -52,7 +52,7 @@ class Encoder(nn.Module):
         self.gru2 = nn.GRU(input_size=7168, num_layers=1, hidden_size=128,
             batch_first = True, bidirectional=True)
         
-        self.conf_in_proj = nn.Linear(7168, 256)
+        """self.conf_in_proj = nn.Linear(7168, 256)
         dim = 256
         self.conformer = Conformer(
             input_dim=dim,
@@ -60,7 +60,7 @@ class Encoder(nn.Module):
             ffn_dim=4*dim,
             num_layers=4,
             depthwise_conv_kernel_size=15,
-        )
+        )"""
 
         self.lin_depth = 2
         in_feat, out_feat = 256, 256
@@ -83,17 +83,17 @@ class Encoder(nn.Module):
             x = module[0](x)
         
         # 2. GRUs
-        """x = rearrange(x, 'b c f t -> (b t) f c')
+        x = rearrange(x, 'b c f t -> (b t) f c')
         x = rearrange(self.gru1(x)[0], '(b t) f c -> b t (f c)', b=b)
-        x = self.gru2(x)[0]"""
+        x = self.gru2(x)[0]
         
-        # 2.b conformer
+        """# 2.b conformer
         ### das hier auch in custom_encoder testen
         x = rearrange(x, 'b c f t -> b t (f c)')
         x = self.conf_in_proj(x)
         B, T, _ = x.shape
         lengths = torch.full((B,), T, device=x.device, dtype=torch.long)
-        x, _ = self.conformer(x, lengths)
+        x, _ = self.conformer(x, lengths)"""
 
         # 3. stack of 2 linear layaer + layernorm + relu
         for i, module in enumerate(self.lin_list):
@@ -154,9 +154,9 @@ class ASPestNet(nn.Module):
         self.d = delay_lengths
         self.ir_length = ir_length
         
-        #self.encoder = Encoder()
-        self.encoder = CustomEncoder()
-        self.enc_outp_shape = [74, 256]
+        self.encoder = Encoder()
+        #self.encoder = CustomEncoder()
+        self.enc_outp_shape = [76, 256]
         self.sigmoid = nn.Sigmoid()
         z1, z2 = 1, 8
         self.sr = 48000
