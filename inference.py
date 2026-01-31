@@ -3,10 +3,12 @@ import torchaudio
 from torchaudio import transforms
 import os
 import time
-from fdn import DiffFDN
+from model import DiffFDN
 import pandas as pd
 import numpy as np
-import audio_utility as util
+#import alt.audio_utility as util
+from utils.utility import *
+from utils.processing import *
 import json
 from matplotlib import pyplot as plt
 import pyfar as pf
@@ -68,11 +70,11 @@ if sr != model_sr:
 if eval_ir.shape[0] != 1:
     eval_ir = eval_ir.mean(dim=0, keepdim=True)
 
-eval_ir = util.pad_crop(eval_ir, sr, ir_length)
+eval_ir = pad_crop(eval_ir, sr, ir_length)
 if eval_ir.ndim == 2:        # [C, T] zu [B, C, T]
     eval_ir = eval_ir.unsqueeze(0)
 
-z = util.get_frequency_samples(int(args['ir_length']*args['samplerate']))
+z = get_frequency_samples(int(args['ir_length']*args['samplerate']))
 t = time.time()
 
 pred, _ = net(eval_ir, z)
@@ -81,8 +83,8 @@ print(f"generated pred in {np.round(np.abs(t-time.time()), 2)} seconds")
 print(f"pred shape: {pred.shape}")
 
 # plot
-pred_np = util.normalize(pred)
-pred_np = pred_np.squeeze(0).squeeze(0).detach().cpu().numpy()
+#pred_np = normalize_energy(pred)
+pred_np = pred.squeeze(0).squeeze(0).detach().cpu().numpy()
 eval_np = eval_ir.squeeze(0).detach().cpu().numpy()
 
 pred_real = np.abs(pred_np).astype(np.float32)

@@ -5,7 +5,8 @@ import numpy as np
 import torch.utils.data as data
 import os
 import tqdm
-import audio_utility as util
+from utils.processing import *
+from utils.utility import *
 
 def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float = 1.):
     IRs = {}
@@ -20,12 +21,6 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
         elif item.endswith(".wav"):
             ir, sr = torchaudio.load(abs_path)
             
-            t60_samples = ir.shape[-1]
-            gamma = 10 ** (-3 / t60_samples)
-            #print(f"gamma: {gamma}")
-            
-            assert ir is not None
-            
             # sample rate bei bedarf anpassen
             if sr != targetSR:
                 resample_tf = transforms.Resample(sr, targetSR)
@@ -35,17 +30,24 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             # erstmal alles mono damit es läuft 
             # kann stereo o.ä. werden, weiss noch nicht obs flexibel geht, tensor shape sieht dementsprechend anders aus bei jedem Datenpunkt
             if ir.shape[0] != 1:
-                ir = ir.mean(dim=0, keepdim=True)
+                #ir = ir.mean(dim=0, keepdim=True)
+                ir = ir[0, :]
             
             # fixe länge wichtig damit das Modell läuft
-            ir = util.pad_crop(ir, sr, ir_length)
+            ir = pad_crop(ir, sr, ir_length)
             
-            assert ir is not None
-            
-            ir = util.normalize(ir)
+            # --------------- PREPROCESSING --------------- #
+            # remove onset 
+            onset = find_onset(ir)
+            ir = np.pad(ir[onset:],(0, onset))
+            # multply random gain to direct sound 
+            ir = augment_direct_gain(ir, sr=sr)
+            # nornalize 
+            ir = normalize_energy(ir)
+            # --------------------------------------------- #
             
             label = item.split(".wav")[0]
-            IRs[label] = [ir, gamma]
+            IRs[label] = ir
     
     return IRs
         
@@ -75,7 +77,7 @@ def split_dataset(dataset, split):
     return train_set, valid_set
 
 def load_dataset(args):
-    dataset = Dataset(path_to_IRs=args.path_to_IRs, samplerate = args.samplerate, ir_length = args.ir_length)
+    dataset = Dataset(path_to_IRs=args.path_to_IRs, samplerate = args.samplerate, ir_length = args.rir_length)
     train_set, valid_set = split_dataset(dataset, args.split)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

@@ -15,6 +15,16 @@ def set_device(device):
         device = 'cpu'
     return device
 
+def get_device():
+    '''set device according to cuda availablilty'''
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return device
+
+def get_steps(dataloader):
+    '''get number of training steps required to process one epoch
+    dataloader: instance of torch.utils.data.DataLoader '''
+    return len(dataloader)/dataloader.batch_size()
+
 @torch.no_grad()
 def get_response(x, net):
     '''
@@ -162,6 +172,7 @@ def save_loss(train_loss, valid_loss, output_dir, save_plot=True, filename=''):
         plt.plot(range(n_epochs), train_loss, label='training', marker="o")
         plt.plot(range(n_epochs), valid_loss, label='validation', marker="o")
         plt.legend()
+        plt.grid()
         plt.savefig(os.path.join(output_dir,'losses'+filename+'.pdf'))
         plt.close()
 

@@ -1,69 +1,42 @@
 import torch 
 import torch.nn as nn 
 import torch.nn.functional as F
-import numpy as np
-import audio_utility as util
+from nnAudio import features
+from utils.utility import get_device
 
-class spectral_loss(nn.Module):
-    def forward(self, y_pred, y_true):
-        raise NotImplementedError
-
-class sparsity_loss(nn.Module):
-    def forward(self, y_pred, y_true):
-        raise NotImplementedError
-
-class mse_loss(nn.Module):
-    def __init__(self):
+class MSSpectralLoss(nn.Module):
+    '''multi scale spectral loss'''
+    def __init__(self, sr = 48000):
         super().__init__()
-        self.loss = nn.MSELoss()
-    def forward(self, y_pred, y_true):
-        y_pred_freq = torch.fft.rfft(y_pred)
-        y_true_freq = torch.fft.rfft(y_true)
-
-        time_loss = self.loss(y_pred, y_true)
-        freq_loss = self.loss(torch.abs(y_pred_freq), torch.abs(y_true_freq))
-
-        return time_loss + freq_loss
-
-class STFTLoss(nn.Module):
-    def __init__(self, sr=48000):
-        super().__init__()
-        n_ffts = [256, 512, 1024, 2048, 4096]
-        overlap = 0.875
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # fft sizes
+        self.n_fft = [256, 512, 1024, 2048, 4096]
+        self.overlap = 0.875
         self.sr = sr
-        self.eps = 1e-6
-
         self.l1loss = nn.L1Loss()
-        self.mseloss = nn.MSELoss()
-
-        self.stfts = nn.ModuleList()
-        for n_fft in n_ffts:
-            hop = int(n_fft * (1 - overlap))
-            self.stfts.append(
-                util.STFT(
-                    num_fft=n_fft,
-                    hop_length=hop
-                )
-                
-            )
 
     def forward(self, y_pred, y_true):
-        # y_pred, y_true: [B, 1, T] or [B, T]
-        #print(f"y_pred shape: {y_pred.shape} | y_true shape: {y_true.shape}")
-        y_pred = y_pred.float()
-        y_true = y_true.float()
+        y_pred.to(self.device)
+        y_true.to(self.device)
+        loss_match = 0 # initialize match loss
+        for i, n_fft in enumerate(self.n_fft):
+            # initialize stft function with new nfft 
+            hop_length = int(n_fft*(1-self.overlap))
+            stft = features.stft.STFT(
+                n_fft = n_fft,
+                hop_length = hop_length,
+                window = 'hann',
+                freq_scale = 'log',
+                sr = self.sr,
+                fmin = 20,
+                fmax = self.sr // 2,
+                output_format = 'Magnitude',
+                verbose=False
+            )
+            stft = stft.to(get_device())
 
-        loss = 0.0
-
-        for stft in self.stfts:
-            Yp, _ = stft.encode(y_pred) # nur magnitude wird aktuell trainiert
-            Yt, _ = stft.encode(y_true)
-
-            loss += self.mseloss(Yp, Yt)
-            #loss += self.l1loss(Yp, Yt)
-            #loss += self.loss(y_pred, y_true)
-
-        #print(f"loss: {loss}")
-        # optional: average over scales
-        return loss / len(self.stfts)
-
+            Y_pred = stft(y_pred)
+            Y_true = stft(y_true)
+            # update match loss
+            loss_match += self.l1loss(Y_pred, Y_true)
+        return loss_match

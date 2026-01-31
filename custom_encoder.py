@@ -3,20 +3,27 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 from einops import rearrange
-import audio_utility as util
+from nnAudio import features
+from utils.utility import *
+from torchaudio.models import Conformer
 
-class Encoder(nn.Module):
+class CustomEncoder(nn.Module):
     def __init__(self, n_fft=1024, sr=48000, overlap=0.875):
         super().__init__()
-
-        self.hop_length = int(n_fft*(1-overlap))
-        self.n_fft = n_fft
         self.sr = sr
-        #self.overlap = overlap
         
-        self.stft = util.STFT(
-            num_fft=n_fft,
-            hop_length=self.hop_length
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        hop_length = int(n_fft*(1-overlap))
+        self.stft = features.stft.STFT(
+            n_fft = n_fft,
+            hop_length = hop_length,
+            window = 'hann',
+            freq_scale = 'log',
+            sr = sr,
+            fmin = 20,
+            fmax = sr // 2,
+            output_format = 'Magnitude',
+            verbose=False
         ) #[b c f t]
         
         base_chn = 32
@@ -52,10 +59,16 @@ class Encoder(nn.Module):
             batch_first=True,
             bidirectional=True
         )
-
-        # vlt hilft das hier, linear layer über zeitdimension
-        # die shape kann hier noch optimiert werden damit das modell effizienter läuft (glaube das heisst pruning)
-        #self.lin1 = nn.Linear(17, 16)
+        
+        dim = 256
+        self.conf_in_proj = nn.Linear(22*dim, dim)
+        self.conformer = Conformer(
+            input_dim=dim,
+            num_heads=8,
+            ffn_dim=4*dim,
+            num_layers=4,
+            depthwise_conv_kernel_size=15,
+        )
         
         self.lin_depth = 2
         self.lin_list = nn.ModuleList([])
@@ -66,12 +79,12 @@ class Encoder(nn.Module):
     
     def forward(self, x):
         printshapes = False
+        x = x.to(self.device)
         b = x.shape[0]
-        if printshapes:
-            print(f"x.shape before stft: {x.shape}")
-        x, _ = self.stft.encode(x)  # x is magnitude, _ would be phase
-        #print(f"x std: {torch.std(x, dim=0).mean()}")
-        #x = torch.log(x+1e-7)
+        # convert to log-freq log-mag stft 
+        x = torch.log(self.stft(x) + 1e-7)
+        # add channel dimension 
+        x = torch.unsqueeze(x, 1)
         
         if printshapes:
             print(f"x.shape pre downsample: {x.shape}")
@@ -81,7 +94,7 @@ class Encoder(nn.Module):
             if printshapes:
                 print(f"x.shape after downsample {i+1}: {x.shape}")
         
-        x = rearrange(x, 'b c f t -> (b t) f c')
+        """x = rearrange(x, 'b c f t -> (b t) f c')
         x, _ = self.gru1(x)
         if printshapes:
             print(f"x.shape after gru1: {x.shape}")
@@ -89,7 +102,13 @@ class Encoder(nn.Module):
         x = rearrange(x, '(b t) f c -> b t (f c)', b=b)
         x, _ = self.gru2(x)
         if printshapes:
-            print(f"x.shape after gru2: {x.shape}") # final shape [B, T, F]
+            print(f"x.shape after gru2: {x.shape}") # final shape [B, T, F]"""
+        
+        x = rearrange(x, 'b c f t -> b t (f c)')
+        x = self.conf_in_proj(x)
+        B, T, _ = x.shape
+        lengths = torch.full((B,), T, device=x.device, dtype=torch.long)
+        x, _ = self.conformer(x, lengths)
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):
