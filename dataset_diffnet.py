@@ -3,6 +3,7 @@ import torch
 from torchaudio import transforms
 import os
 import soundfile as sf
+from scipy.signal import resample_poly
 from time import time
 from glob import glob
 from tqdm import tqdm
@@ -24,13 +25,12 @@ class rirDataset(Dataset):
         self.data_loaded = []
         st = time()
         for i in tqdm(range(0, len(pathlist))):
-
             rir, samplerate = sf.read(pathlist[i], dtype='float32')
             #if samplerate!=args.samplerate:
-                #raise ValueError('Wrong samplerate: detected {} - required {}'.format(samplerate, args.samplerate))
+            #    raise ValueError('Wrong samplerate: detected {} - required {}'.format(samplerate, args.samplerate))
+            ### fehler werfen ist blöd, lieber resamplen
             if samplerate != args.samplerate:
-                resample_tf = transforms.Resample(samplerate, args.samplerate)
-                ir = resample_tf(ir)
+                rir = resample_poly(rir, args.samplerate, samplerate)
                 samplerate = args.samplerate
             # if multichannel, take only the first channel
             if len(rir.shape)>1:
@@ -44,7 +44,7 @@ class rirDataset(Dataset):
                 rir = np.pad(rir, 
                 ((0, rir_len_samples - rir.shape[0])),
                 mode = 'constant')
-
+                
             # --------------- PREPROCESSING --------------- #
             # remove onset 
             onset = find_onset(rir)

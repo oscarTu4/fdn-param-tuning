@@ -27,9 +27,6 @@ class CustomEncoder(nn.Module):
         ) #[b c f t]
         
         base_chn = 32
-        """chn_multiplier = [1, 2, 4, 6, 8] 
-        kernel = [(7,7), (5,5), (5,5), (5,5), (5,5)]
-        strides = [(2,4), (4,1), (2,1), (1,2), (1,1)]"""
         chn_multiplier = [1, 2, 4] 
         kernel = [(7,7), (5,5), (5,5)]
         strides = [(2,4), (4,1), (2,2)]

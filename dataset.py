@@ -4,41 +4,42 @@ from torchaudio import transforms
 import numpy as np 
 import torch.utils.data as data
 import os
-import tqdm
+from glob import glob
+from tqdm import tqdm
 from utils.processing import *
 from utils.utility import *
+import random
 
 def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float = 1.):
     IRs = {}
-    
-    for item in os.listdir(dir):
-        abs_path = os.path.join(dir, item)
-        
-        if os.path.isdir(abs_path):
-            print(f"loading dir {abs_path}")
-            sub_irs = loadAllIRFromFolder(dir=abs_path, targetSR=targetSR, ir_length=ir_length)
-            IRs.update(sub_irs)
-        elif item.endswith(".wav"):
-            ir, sr = torchaudio.load(abs_path)
-            
+    pathlist = [y for x in os.walk(dir) for y in glob(os.path.join(x[0], '*.wav'))]
+    random.shuffle(pathlist)
+
+    for item in tqdm(pathlist):
+        try:
+            ir, sr = torchaudio.load(item)
+
             # sample rate bei bedarf anpassen
             if sr != targetSR:
                 resample_tf = transforms.Resample(sr, targetSR)
                 ir = resample_tf(ir)
                 sr = targetSR
             
-            # erstmal alles mono damit es läuft 
-            # kann stereo o.ä. werden, weiss noch nicht obs flexibel geht, tensor shape sieht dementsprechend anders aus bei jedem Datenpunkt
-            if ir.shape[0] != 1:
-                #ir = ir.mean(dim=0, keepdim=True)
-                ir = ir[0, :]
-            
-            # fixe länge wichtig damit das Modell läuft
             ir = pad_crop(ir, sr, ir_length)
+            
+            # erstmal alles mono damit es läuft
+            #if ir.shape[0] != 1:
+            #    ir = ir[0, :].numpy()
+            if ir.ndim == 2:
+                ir = ir[0]
+            ir = ir.squeeze().numpy()
             
             # --------------- PREPROCESSING --------------- #
             # remove onset 
+            if ir.shape[-1] < 256:
+                continue
             onset = find_onset(ir)
+            #print(f"onset: {onset}")
             ir = np.pad(ir[onset:],(0, onset))
             # multply random gain to direct sound 
             ir = augment_direct_gain(ir, sr=sr)
@@ -47,8 +48,11 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             # --------------------------------------------- #
             
             label = item.split(".wav")[0]
-            IRs[label] = ir
-    
+            #IRs[label] = ir
+            IRs[label] = torch.from_numpy(ir)   # hässlich aber nan fehler beim andern dataset, onset/normalize und so nur für numpy
+        except Exception as e:
+            print(e)
+            #raise e
     return IRs
         
 

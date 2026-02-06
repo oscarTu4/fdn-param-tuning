@@ -1,4 +1,5 @@
-import torch 
+import torch
+import torch.nn.functional as F
 import numpy as np 
 from utils.utility import get_device
 
@@ -45,6 +46,7 @@ def find_onset(rir):
 
     local_energy = local_energy[int(n_win_discard):]
     outp = int(win_len * hop * ( np.argmax(local_energy) - 1)) # one hopsize as safety margin 
+    outp = max(0, outp)   ### fix für komische negative werte
     return outp
 
 def augment_direct_gain(rir, low = 10**(-12/20), high=10**(3/20), sr=48000):

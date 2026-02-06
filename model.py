@@ -145,14 +145,17 @@ class ProjectionLayer(nn.Module):
 
 # ARP ESTIMATION NETWORK 
 class ASPestNet(nn.Module):
-    def __init__(self, delay_lengths, ir_length=1.8):
+    def __init__(self, delay_lengths, rir_length=1.8, conf_backbone=False):
         super().__init__()
         self.d = delay_lengths
-        self.ir_length = ir_length
+        self.ir_length = rir_length
         
-        #self.encoder = Encoder()
-        self.encoder = CustomEncoder()
-        self.enc_outp_shape = [80, 256] ### [76, 256] mit Encoder, [74, 256] mit CustomEncoder
+        if conf_backbone:
+            self.encoder = CustomEncoder()
+            self.enc_outp_shape = [80, 256] ### [76, 256] mit Encoder, [80, 256] mit CustomEncoder
+        else:
+            self.encoder = Encoder()
+            self.enc_outp_shape = [76, 256]
         self.sigmoid = nn.Sigmoid()
         z1, z2 = 1, 8
         self.sr = 48000
@@ -265,7 +268,7 @@ class ASPestNet(nn.Module):
         # h0 = F.pad(h0, (0, self.ir_length-h0.size(dim=1)))*0
         # ir = (h0 + ir_late[:,:self.ir_length])
         ir = ir_late[:,:self.ir_length]
-        return ir, H, ir_late, torch.zeros(1)
+        return ir, H, ir_late, torch.zeros(1), (b, c, U, gamma)
     
     def get_filters(self, x, z):
         x = self.encoder(x) # out: [bs, 109, 256]
