@@ -41,6 +41,7 @@ class Trainer:
             self.optimizer = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
             self.warmup_steps = 250*args.batch_size
         else:
+            self.warmup_steps = 0
             self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
         
         self.criterion = MSSpectralLoss()
@@ -211,7 +212,7 @@ if __name__ == '__main__':
     parser.add_argument('--samplerate', type=int, default=48000, help ='sample rate')
     
     # dataset 
-    parser.add_argument('--path_to_IRs', type=str, default="")
+    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train/ChurchIR")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
     parser.add_argument('--rir_length', type=float, default=1.8, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")

@@ -86,7 +86,7 @@ class CustomEncoder(nn.Module):
             print(f"x.shape after rearrange: {x.shape}")
         #x = self.conf_conv_in(x)
         x = self.conf_lin_in(x)
-        #x = x.transpose(1, 2)
+
         if printshapes:
             print(f"x.shape after conf_conv_in: {x.shape}")
         B, T, _ = x.shape
