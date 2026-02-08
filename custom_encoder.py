@@ -26,80 +26,62 @@ class CustomEncoder(nn.Module):
             verbose=False
         ) #[b c f t]
         
-        base_chn = 32
-        chn_multiplier = [1, 2, 4] 
-        kernel = [(7,7), (5,5), (5,5)]
-        strides = [(2,4), (4,1), (2,2)]
+        #base_chn = 32
+        #chn_multiplier = [1, 2, 4] 
+        #kernel = [(7,7), (5,5), (5,5)]
+        #strides = [(2,4), (4,1), (2,2)]
+        channels_in = [513, 384, 256]
+        channels_out = [384, 256, 256]
+        kernel = [7, 5, 5]
+        strides = [2, 2, 2]
         
         self.conv_list = nn.ModuleList([])
-        for i in range(len(chn_multiplier)):
-            if i == 0:
-                chn_in = 1
-            else:
-                chn_in = base_chn*chn_multiplier[i-1]
-            
+        for i in range(len(channels_in)):
             self.conv_list.append(
-                conv2d_block(chn_in, base_chn*chn_multiplier[i], kernel[i], strides[i])
+                conv1d_block(channels_in[i], channels_out[i], kernel[i], strides[i])
             )
         
-        cf = 30*128
         dim = 256
-        #self.conf_conv_in = nn.Conv1d(cf, dim, kernel_size=3, padding=1)
-        self.conf_lin_in = nn.Linear(cf, dim)
+        self.conf_lin_in = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.LayerNorm(dim)
+        )
         self.conformer = Conformer(
             input_dim=dim,
             num_heads=8,
             ffn_dim=4*dim,
             num_layers=4,
             depthwise_conv_kernel_size=15,
+            use_group_norm=True,
             dropout=0.1
         )
         
         self.lin_depth = 2
         self.lin_list = nn.ModuleList([])
-        for i in range(self.lin_depth):
+        for i in range(self.lin_depth): 
             self.lin_list.append(nn.ModuleList(
                 [linear_block(256, 256)]
             ))
     
     def forward(self, x):
-        printshapes = False
         x = x.to(self.device)
-        b = x.shape[0]
-        # convert to log-freq log-mag stft 
         x = torch.log(self.stft(x) + 1e-7)
         # add channel dimension 
-        x = torch.unsqueeze(x, 1)
-        
-        if printshapes:
-            print(f"x.shape pre downsample: {x.shape}")
+        #x = torch.unsqueeze(x, 1)
 
         for i, module in enumerate(self.conv_list):
             x = module(x)
-            if printshapes:
-                print(f"x.shape after downsample {i+1}: {x.shape}")
         
-        x = rearrange(x, 'b c f t -> b t (c f)')
-        #x = rearrange(x, 'b c f t -> b (c f) t') # für conv in layer
-        
-        if printshapes:
-            print(f"x.shape after rearrange: {x.shape}")
-        #x = self.conf_conv_in(x)
+        x = x.permute(0, 2, 1)
         x = self.conf_lin_in(x)
 
-        if printshapes:
-            print(f"x.shape after conf_conv_in: {x.shape}")
         B, T, _ = x.shape
         lengths = torch.full((B,), T, device=x.device, dtype=torch.long)
         x, _ = self.conformer(x, lengths)
-        if printshapes:
-            print(f"x.shape after conformer: {x.shape}")
 
         # 3. stack of 2 linear layer + layernorm + relu
         for i, module in enumerate(self.lin_list):
             x = module[0](x)
-            if printshapes:
-                print(f"x.shape after ll {i}: {x.shape}")
         
         return x
 
@@ -111,16 +93,23 @@ class conv2d_block(nn.Module):
         self.conv2d = nn.utils.weight_norm(
             nn.Conv2d(chn_in, chn_out, kernel, stride, bias=False)
         )
-        
-        self.norm = nn.InstanceNorm2d(chn_out, affine=True)
-        self.act = nn.LeakyReLU(negative_slope=0.1)
 
     def forward(self, x):
         x = self.conv2d(x)
-        #x = self.norm(x) # optional, weiss noch nicht was das bringt
-        #x = self.act(x)
-        x = F.relu(x) # relu oder act, nicht beide
+        x = F.relu(x)
         return x 
+
+class conv1d_block(nn.Module):
+    def __init__(self, chn_in, chn_out, kernel, stride):
+        super().__init__()
+        self.conv1d = nn.utils.weight_norm(
+            nn.Conv1d(chn_in, chn_out, kernel, stride, bias=False)
+        )
+    
+    def forward(self, x):
+        x = self.conv1d(x)
+        x = F.relu(x)
+        return x
 
 class linear_block(nn.Module):
     def __init__(self, in_feat, out_feat):

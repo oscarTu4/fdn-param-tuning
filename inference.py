@@ -18,7 +18,7 @@ import random
 import shutil
 
 
-exp = "outputs/one_overfit_conformer" ### path to experiment directory
+exp = "outputs/1_overfit_conf_ln" ### path to experiment directory
 args_path = os.path.join(exp, "args.json")
 
 ### read args from json file
@@ -30,23 +30,13 @@ ir_length = args["rir_length"]
 device = 'cpu'
 
 # init neural net
-ckpt_path = os.path.join(exp, f"checkpoints/model_e32.pt")
-filepath = 'Params/'
-N = args["N"]
-delay_set = args["delay_set"]
-filename = 'param' + '_N' + str(N) + '_d' + str(delay_set)
+ckpt_path = os.path.join(exp, f"checkpoints/model_e1500.pt")
 
-df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
-delay_lens = torch.from_numpy(df['m'][:N].to_numpy())
-
-net = ASPestNet(None, rir_length=args["rir_length"], conf_backbone=True)
+net = ASPestNet(None, rir_length=args["rir_length"], conf_backbone=args["conf_backbone"])
 weights = torch.load(ckpt_path, map_location=device) # load weights
 net.load_state_dict(weights) # load weights ins nn
 net = net.eval()
 
-#hier wird die IR gefüttert und eine prediction gemacht:
-
-### TODO loop über mehrere IRs, dann kann man epochen untereinander vergleichen
 eval_path = "/Users/oscar/documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train_of/"
 eval_files = os.listdir(eval_path)#random.choice(os.listdir(eval_path))
 eval_filepaths = [os.path.join(eval_path, eval_file) for eval_file in eval_files if eval_file.endswith('.wav')]
@@ -70,15 +60,23 @@ for eval_filepath in eval_filepaths:
     z = get_frequency_samples(120000//2+1)
     
     pred, H, _, _, params = net(eval_ir, z)
+    print(f"pred mean: {torch.mean(pred)}")
     print(f"H mean: {torch.mean(H)}")
     HH.append(H)
     preds.append(pred)
 
 preds = torch.stack(preds)
+HH = torch.stack(HH)
 
-mse = torch.mean((preds[0] - preds[1])**2)
-mse_H = torch.mean((HH[0]-HH[1])**2)
-print("params MSE:", mse.item())
+import torch.nn as nn
+mse_loss = nn.MSELoss()
+mse = mse_loss(preds[0], preds[1])
+mse_H = mse_loss(torch.abs(HH[0]), torch.abs(HH[1]))
+#mse = torch.mean((preds - preds.mean(dim=0, keepdim=True))**2)
+#mse_H = torch.mean((HH - HH.mean(dim=0, keepdim=True))**2)
+
+print("-------------------------------------------------------")
+print("preds MSE:", mse.item())
 print("H MSE:", mse_H.item())
 
 # plot

@@ -47,16 +47,6 @@ class Encoder(nn.Module):
             batch_first = True, bidirectional=True)
         self.gru2 = nn.GRU(input_size=7168, num_layers=1, hidden_size=128,
             batch_first = True, bidirectional=True)
-        
-        """self.conf_in_proj = nn.Linear(7168, 256)
-        dim = 256
-        self.conformer = Conformer(
-            input_dim=dim,
-            num_heads=8,
-            ffn_dim=4*dim,
-            num_layers=4,
-            depthwise_conv_kernel_size=15,
-        )"""
 
         self.lin_depth = 2
         in_feat, out_feat = 256, 256
@@ -82,14 +72,6 @@ class Encoder(nn.Module):
         x = rearrange(x, 'b c f t -> (b t) f c')
         x = rearrange(self.gru1(x)[0], '(b t) f c -> b t (f c)', b=b)
         x = self.gru2(x)[0]
-        
-        """# 2.b conformer
-        ### das hier auch in custom_encoder testen
-        x = rearrange(x, 'b c f t -> b t (f c)')
-        x = self.conf_in_proj(x)
-        B, T, _ = x.shape
-        lengths = torch.full((B,), T, device=x.device, dtype=torch.long)
-        x, _ = self.conformer(x, lengths)"""
 
         # 3. stack of 2 linear layaer + layernorm + relu
         for i, module in enumerate(self.lin_list):
@@ -151,9 +133,11 @@ class ASPestNet(nn.Module):
         self.ir_length = rir_length
         
         if conf_backbone:
+            print(f"training mit Conformer")
             self.encoder = CustomEncoder()
-            self.enc_outp_shape = [80, 256] ### [76, 256] mit Encoder, [80, 256] mit CustomEncoder
+            self.enc_outp_shape = [81, 256]
         else:
+            print(f"training mit GRU's")
             self.encoder = Encoder()
             self.enc_outp_shape = [76, 256]
         self.sigmoid = nn.Sigmoid()

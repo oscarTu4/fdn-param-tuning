@@ -173,6 +173,7 @@ def save_loss(train_loss, valid_loss, output_dir, save_plot=True, filename=''):
         plt.plot(range(n_epochs), valid_loss, label='validation', marker="o")
         plt.legend()
         plt.grid()
+        
         plt.savefig(os.path.join(output_dir,'losses'+filename+'.pdf'))
         plt.close()
 

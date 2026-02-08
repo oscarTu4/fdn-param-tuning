@@ -38,9 +38,11 @@ class Trainer:
         self.scheduler_steps = args.scheduler_steps
 
         if args.conf_backbone:
+            print(f"init AdamW Optimizer mit WU steps")
             self.optimizer = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
             self.warmup_steps = 250*args.batch_size
         else:
+            print(f"init Adam Optimizer ohne WU steps")
             self.warmup_steps = 0
             self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
         
@@ -212,7 +214,7 @@ if __name__ == '__main__':
     parser.add_argument('--samplerate', type=int, default=48000, help ='sample rate')
     
     # dataset 
-    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train/ChurchIR")
+    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train_of")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
     parser.add_argument('--rir_length', type=float, default=1.8, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
@@ -220,7 +222,6 @@ if __name__ == '__main__':
     parser.add_argument('--delay_set', type=int, default=1)
     parser.add_argument('--num', type=int, default=120000)
     parser.add_argument('--clip_max_norm', default=10, help='gradient clipping maximum gradient norm')
-    parser.add_argument('--warmup_steps', type=int, default=0, help="wichtig für conformer")
     
     # training
     parser.add_argument('--batch_size', type=int, default=16, help='batch size')
@@ -231,7 +232,7 @@ if __name__ == '__main__':
     # optimizer
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--scheduler_steps', default=250000)
-    parser.add_argument('--training_name', type=str, default=None)
+    parser.add_argument('--training_name', type=str, default="test")
     args = parser.parse_args()
 
     if not args.training_name:
