@@ -57,6 +57,7 @@ class Encoder(nn.Module):
             ))
     
     def forward(self, x):
+        print(f"moving x to {self.device}")
         x = x.to(self.device)
         b = x.shape[0]
         # convert to log-freq log-mag stft 
