@@ -101,18 +101,21 @@ def PEQ(x, f, R, G):
     return H
 
 def biquad_to_tf(x, beta, alpha):
+    print(f"ist gelaufen auf {get_device()}")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"fehlerbehebung, läuft jetzt auf device: {device}")
     # TODO: too many transpose operations. they can be removed
-        H = torch.div(
-                torch.matmul(
-                    torch.pow(x.expand((3 ,-1)).transpose(1, 0), 
-                        torch.tensor([0, -1, -2], device=get_device())),
-                    beta.transpose(1,0)),
-                torch.matmul(
-                    torch.pow(x.expand((3 ,-1)).transpose(1, 0), 
-                        torch.tensor([0, -1, -2], device=get_device())),
-                    alpha.transpose(1,0))
-            )
-        return H.transpose(1, 0) 
+    H = torch.div(
+            torch.matmul(
+                torch.pow(x.expand((3 ,-1)).transpose(1, 0), 
+                    torch.tensor([0, -1, -2], device=device)),
+                beta.transpose(1,0)),
+            torch.matmul(
+                torch.pow(x.expand((3 ,-1)).transpose(1, 0), 
+                    torch.tensor([0, -1, -2], device=device)),
+                alpha.transpose(1,0))
+        )
+    return H.transpose(1, 0) 
 
 def compute_biquad_coeff(f, R, mLP, mBP, mHP):
     if f.dim() == 1:
