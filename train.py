@@ -174,7 +174,6 @@ class Trainer:
 
 
 def main(args):
-    train_dataset, valid_dataset = load_dataset(args)  #### old dataset class
     
     """dataset = rirDataset(args)
     train_dataset, valid_dataset = split_dataset(dataset, args.split)
@@ -202,6 +201,8 @@ def main(args):
     print(f"batch size = {args.batch_size} | trainable params = {(trainable_params/1000000):.3f}M")
     with open(os.path.join(args.train_dir, "params.txt"), 'w') as f:
         f.write(f"trainable params = {trainable_params}")
+    
+    train_dataset, valid_dataset = load_dataset(args)  #### old dataset class
     print(f"trainset size: {len(train_dataset.dataset)} | valset size: {len(valid_dataset.dataset)}")
     
     trainer = Trainer(net, args, train_dataset, valid_dataset)
