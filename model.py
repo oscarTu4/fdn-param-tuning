@@ -57,6 +57,7 @@ class Encoder(nn.Module):
             ))
     
     def forward(self, x):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"moving x to {self.device}")
         x = x.to(self.device)
         b = x.shape[0]
