@@ -18,7 +18,7 @@ import random
 import shutil
 
 
-exp = "outputs/1_overfit_conf_ln" ### path to experiment directory
+exp = "outputs/1_overfit_conf" ### path to experiment directory
 args_path = os.path.join(exp, "args.json")
 
 ### read args from json file
@@ -30,7 +30,7 @@ ir_length = args["rir_length"]
 device = 'cpu'
 
 # init neural net
-ckpt_path = os.path.join(exp, f"checkpoints/model_e1500.pt")
+ckpt_path = os.path.join(exp, f"checkpoints/model_e740.pt")
 
 net = ASPestNet(None, rir_length=args["rir_length"], conf_backbone=args["conf_backbone"])
 weights = torch.load(ckpt_path, map_location=device) # load weights
@@ -70,10 +70,10 @@ HH = torch.stack(HH)
 
 import torch.nn as nn
 mse_loss = nn.MSELoss()
-mse = mse_loss(preds[0], preds[1])
-mse_H = mse_loss(torch.abs(HH[0]), torch.abs(HH[1]))
-#mse = torch.mean((preds - preds.mean(dim=0, keepdim=True))**2)
-#mse_H = torch.mean((HH - HH.mean(dim=0, keepdim=True))**2)
+#mse = mse_loss(preds[0], preds[1])
+#mse_H = mse_loss(torch.abs(HH[0]), torch.abs(HH[1]))
+mse = torch.mean((preds - preds.mean(dim=0, keepdim=True))**2)
+mse_H = torch.mean((HH - HH.mean(dim=0, keepdim=True))**2)
 
 print("-------------------------------------------------------")
 print("preds MSE:", mse.item())

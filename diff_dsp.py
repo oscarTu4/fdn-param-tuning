@@ -61,7 +61,7 @@ def SAP(x, m, gamma):
     return H 
 
 def PEQ(x, f, R, G):
-    ''' differentiable parameteric equilizer
+    ''' differentiable parameteric equalizer
     x: frequency sampling points
     f: cut off frequency 
     R: resonance 

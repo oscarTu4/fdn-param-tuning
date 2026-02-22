@@ -149,11 +149,10 @@ class Trainer:
             pf.plot.time_freq(eval_sig, label="eval", alpha=0.5)
             pf.plot.time_freq(pred_sig, label="pred", alpha=0.5)
             plt.legend()
-            #plt.grid()
+
             plt.savefig(os.path.join(plot_out, f"e{epoch}.pdf"))
             plt.close()
-            ### evaluate on epoch end, TODO adapt to delay-diff-net
-            #self.evaluate(epoch=epoch)
+
 
     def print_results(self, e, e_time):
         print(get_str_results(epoch=e, 
@@ -215,7 +214,7 @@ if __name__ == '__main__':
     
     # dataset 
     parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train_of")
-    parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
+    parser.add_argument('--split', type=float, default=0.5, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
     parser.add_argument('--rir_length', type=float, default=1.8, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
     parser.add_argument('--N', type=int, default=8)
@@ -224,13 +223,13 @@ if __name__ == '__main__':
     parser.add_argument('--clip_max_norm', default=10, help='gradient clipping maximum gradient norm')
     
     # training
-    parser.add_argument('--batch_size', type=int, default=16, help='batch size')
-    parser.add_argument('--max_epochs', type=int, default=10000,  help='maximum number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch size')
+    parser.add_argument('--max_epochs', type=int, default=1500,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
-    parser.add_argument('--conf_backbone', type=bool, default=False)
+    parser.add_argument('--conf_backbone', type=bool, default=True)
     
     # optimizer
-    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
+    parser.add_argument('--lr', type=float, default=5e-05, help='learning rate')
     parser.add_argument('--scheduler_steps', default=250000)
     parser.add_argument('--training_name', type=str, default="test")
     args = parser.parse_args()

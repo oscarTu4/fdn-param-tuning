@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from einops import rearrange
 from nnAudio import features
 from utils.utility import *
-from torchaudio.models import Conformer
+#from torchaudio.models import Conformer
+from ConformerBlock import Conformer
 
 class CustomEncoder(nn.Module):
     def __init__(self, n_fft=1024, sr=48000, overlap=0.875):
@@ -30,20 +31,23 @@ class CustomEncoder(nn.Module):
         #chn_multiplier = [1, 2, 4] 
         #kernel = [(7,7), (5,5), (5,5)]
         #strides = [(2,4), (4,1), (2,2)]
-        channels_in = [513, 384, 256]
-        channels_out = [384, 256, 256]
-        kernel = [7, 5, 5]
-        strides = [2, 2, 2]
+        #channels_in = [513, 384, 256]
+        channels_in = [1, 513, 384, 256, 128]
+        channels_out = [513, 384, 256, 128, 64]
+        kernel = [(7,5), (5,5), (5,5), (5,5), (5,5)]
+        strides = [(2,2), (2,1), (2,2), (2,2), (2,1)]
         
         self.conv_list = nn.ModuleList([])
         for i in range(len(channels_in)):
             self.conv_list.append(
-                conv1d_block(channels_in[i], channels_out[i], kernel[i], strides[i])
+                #conv1d_block(channels_in[i], channels_out[i], kernel[i], strides[i])
+                conv2d_block(channels_in[i], channels_out[i], kernel[i], strides[i])
             )
         
+        c_o = 832
         dim = 256
         self.conf_lin_in = nn.Sequential(
-            nn.Linear(dim, dim),
+            nn.Linear(c_o, dim),
             nn.LayerNorm(dim)
         )
         self.conformer = Conformer(
@@ -52,8 +56,7 @@ class CustomEncoder(nn.Module):
             ffn_dim=4*dim,
             num_layers=4,
             depthwise_conv_kernel_size=15,
-            use_group_norm=True,
-            dropout=0.1
+            dropout=0.0
         )
         
         self.lin_depth = 2
@@ -67,12 +70,13 @@ class CustomEncoder(nn.Module):
         x = x.to(self.device)
         x = torch.log(self.stft(x) + 1e-7)
         # add channel dimension 
-        #x = torch.unsqueeze(x, 1)
+        x = torch.unsqueeze(x, 1)
 
         for i, module in enumerate(self.conv_list):
             x = module(x)
         
-        x = x.permute(0, 2, 1)
+        x = rearrange(x, 'b c f t -> b t (c f)')
+        #x = x.permute(0, 2, 1)
         x = self.conf_lin_in(x)
 
         B, T, _ = x.shape

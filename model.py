@@ -135,7 +135,7 @@ class ASPestNet(nn.Module):
         if conf_backbone:
             print(f"training mit Conformer")
             self.encoder = CustomEncoder()
-            self.enc_outp_shape = [81, 256]
+            self.enc_outp_shape = [76, 256]
         else:
             print(f"training mit GRU's")
             self.encoder = Encoder()
