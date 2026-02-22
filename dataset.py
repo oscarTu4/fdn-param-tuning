@@ -88,7 +88,8 @@ def load_dataset(args):
     )
     train_set, valid_set = split_dataset(dataset, args.split)
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = "cpu"
 
     # dataloaders
     train_loader = torch.utils.data.DataLoader(

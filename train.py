@@ -37,6 +37,8 @@ class Trainer:
         self.steps = 0 # falls checkpoint geladen wird muss das hier geändert werden
         self.scheduler_steps = args.scheduler_steps
 
+        print(f"args.conf_backbone: {args.conf_backbone}")
+        print(f"args.lr: {args.lr}")
         if args.conf_backbone:
             print(f"init AdamW Optimizer mit WU steps")
             self.optimizer = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -226,10 +228,10 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--max_epochs', type=int, default=1500,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
-    parser.add_argument('--conf_backbone', type=bool, default=True)
+    parser.add_argument('--conf_backbone', action='store_true')
     
     # optimizer
-    parser.add_argument('--lr', type=float, default=5e-05, help='learning rate')
+    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--scheduler_steps', default=250000)
     parser.add_argument('--training_name', type=str, default="test")
     args = parser.parse_args()
