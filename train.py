@@ -91,7 +91,7 @@ class Trainer:
 
                 # update the weights
                 self.optimizer.step()
-                if self.steps >= self.warmup_steps:
+                if self.steps >= self.warmup_steps and self.steps >= self.scheduler_steps:
                     self.scheduler.step()
                 self.steps += 1
     
