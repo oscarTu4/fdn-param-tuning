@@ -61,6 +61,11 @@ class Trainer:
         self.test_batch = next(iter(valid_dataset))
     
     def train(self):
+        args.device = get_device()
+        if (args.device == 'cuda') & torch.cuda.is_available():
+            torch.set_default_tensor_type(torch.cuda.FloatTensor)
+        print("Device: "+str(args.device))
+
         write_audio(self.test_batch[0,:], 
                 os.path.join(self.train_dir, 'audio_output'),
                 'target_ir.wav')
@@ -75,9 +80,7 @@ class Trainer:
             # ----------- TRAINING ----------- # 
             pbar = tqdm(self.train_dataset, desc=f"Training | Epoch {epoch}/{self.max_epochs}")
             for _, input in enumerate(pbar):
-                input.to(get_device())
                 target = input.clone()
-                #target.to(get_device())
 
                 self.optimizer.zero_grad()
                 estimate, H, _, _, _ = self.net(input, self.x)  # get estimate
