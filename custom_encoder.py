@@ -67,8 +67,8 @@ class CustomEncoder(nn.Module):
             ))
     
     def forward(self, x):
-        print(f"hier wurde vorher x nach {self.device} geschoben")
-        #x = x.to(self.device)
+        #print(f"hier wurde vorher x nach {self.device} geschoben")
+        x = x.to(self.device)
         x = torch.log(self.stft(x) + 1e-7)
         # add channel dimension 
         x = torch.unsqueeze(x, 1)

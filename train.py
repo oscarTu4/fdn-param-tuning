@@ -76,6 +76,8 @@ class Trainer:
             pbar = tqdm(self.train_dataset, desc=f"Training | Epoch {epoch}/{self.max_epochs}")
             for _, input in enumerate(pbar):
                 target = input.clone()
+                target.to(get_device())
+                
                 self.optimizer.zero_grad()
                 estimate, H, _, _, _ = self.net(input, self.x)  # get estimate
 

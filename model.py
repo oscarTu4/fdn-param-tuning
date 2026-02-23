@@ -57,8 +57,8 @@ class Encoder(nn.Module):
             ))
     
     def forward(self, x):
-        print(f"hier wurde vorher x nach {self.device} geschoben")
-        #x = x.to(self.device)
+        #print(f"hier wurde vorher x nach {self.device} geschoben")
+        x = x.to(self.device)
         b = x.shape[0]
         # convert to log-freq log-mag stft 
         x = torch.log(self.stft(x) + 1e-7)
