@@ -24,9 +24,9 @@ from matplotlib import pyplot as plt
 
 class Trainer:
     def __init__(self, net, args, train_dataset, valid_dataset):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.net = net
-        self.net = self.net.to(device)
+        self.net = self.net.to(self.device)
 
         self.max_epochs = args.max_epochs
         self.train_dir = args.train_dir
@@ -57,14 +57,14 @@ class Trainer:
         # for eval
         self.samplerate = args.samplerate
         self.rir_length = args.rir_length
-        self.x = get_frequency_samples(args.num//2+1)
-        self.test_batch = next(iter(valid_dataset))
+        self.x = get_frequency_samples(args.num//2+1).to(self.device)
+        self.test_batch = next(iter(valid_dataset)).to(self.device)
     
     def train(self):
-        args.device = get_device()
-        if (args.device == 'cuda') & torch.cuda.is_available():
+        device = get_device()
+        if (device == 'cuda') & torch.cuda.is_available():
             torch.set_default_tensor_type(torch.cuda.FloatTensor)
-        print("Device: "+str(args.device))
+        print("Device: "+str(device))
 
         write_audio(self.test_batch[0,:], 
                 os.path.join(self.train_dir, 'audio_output'),
@@ -80,6 +80,7 @@ class Trainer:
             # ----------- TRAINING ----------- # 
             pbar = tqdm(self.train_dataset, desc=f"Training | Epoch {epoch}/{self.max_epochs}")
             for _, input in enumerate(pbar):
+                input = input.to(device)
                 target = input.clone()
 
                 self.optimizer.zero_grad()
@@ -192,16 +193,16 @@ def main(args):
                                     shuffle = args.shuffle,)"""
     
     # init neural net
-    filepath = 'Params/'
+    """filepath = 'Params/'
     N = args.N
     filename = 'param' + '_N' + str(N) + '_d' + str(args.delay_set)
 
     df = pd.read_csv(filepath+filename+'.csv', delimiter=';', nrows=N*N, dtype={'A':np.float32,'m':'Int32'})
-    delay_lengths = torch.from_numpy(df['m'][:N].to_numpy())
+    delay_lengths = torch.from_numpy(df['m'][:N].to_numpy())"""
     
     #z = get_frequency_samples(int(args.rir_length*args.samplerate))
     #net = DiffFDN(delay_lens, z, args.samplerate, args.rir_length)
-    net = ASPestNet(delay_lengths=delay_lengths, rir_length=args.rir_length, conf_backbone=args.conf_backbone)
+    net = ASPestNet(rir_length=args.rir_length, conf_backbone=args.conf_backbone)
 
     trainable_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
     print(f"batch size = {args.batch_size} | trainable params = {(trainable_params/1000000):.3f}M")
@@ -222,7 +223,8 @@ if __name__ == '__main__':
     parser.add_argument('--samplerate', type=int, default=48000, help ='sample rate')
     
     # dataset 
-    parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train_of")
+    #parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train_of")
+    parser.add_argument('--path_to_IRs', type=str, default="/home/allen2/DL4AD/repositories/Shoebox-Random-RIRs/shoebox_results")
     parser.add_argument('--split', type=float, default=0.5, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
     parser.add_argument('--rir_length', type=float, default=1.8, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")

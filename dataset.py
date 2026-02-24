@@ -87,16 +87,13 @@ def load_dataset(args):
         ir_length = args.rir_length,
     )
     train_set, valid_set = split_dataset(dataset, args.split)
-    
-    #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = "cpu"
 
     # dataloaders
     train_loader = torch.utils.data.DataLoader(
         train_set, 
         batch_size=args.batch_size,
         shuffle=args.shuffle,
-        generator=torch.Generator(device=device),
+        generator=torch.Generator(),
         drop_last = True
     )
     
@@ -104,7 +101,7 @@ def load_dataset(args):
         valid_set, 
         batch_size=args.batch_size,
         shuffle=args.shuffle,
-        generator=torch.Generator(device=device),
+        generator=torch.Generator(),
         drop_last = True
     )
     

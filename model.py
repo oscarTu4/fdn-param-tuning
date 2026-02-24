@@ -128,9 +128,8 @@ class ProjectionLayer(nn.Module):
 
 # ARP ESTIMATION NETWORK 
 class ASPestNet(nn.Module):
-    def __init__(self, delay_lengths, rir_length=1.8, conf_backbone=False):
+    def __init__(self, rir_length=1.8, conf_backbone=False):
         super().__init__()
-        self.d = delay_lengths
         self.ir_length = rir_length
         
         if conf_backbone:
