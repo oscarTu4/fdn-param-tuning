@@ -87,9 +87,11 @@ class Trainer:
                 estimate, H, _, _, _ = self.net(input, self.x)  # get estimate
 
                 loss = self.criterion(estimate, target) # compute loss
+                if torch.isnan(loss):
+                    print(f"loss nan at input {input}")
                 epoch_loss += loss.item()
                 loss.backward()
-                # clip gridients
+                # clip gradients
                 grad_norm += nn.utils.clip_grad_norm_(self.net.parameters(), args.clip_max_norm)
 
                 # LR warmup
@@ -182,16 +184,6 @@ class Trainer:
 
 def main(args):
     
-    """dataset = rirDataset(args)
-    train_dataset, valid_dataset = split_dataset(dataset, args.split)
-    # dataloaders
-    train_loader = get_dataloader(  train_dataset,
-                                    batch_size=args.batch_size,
-                                    shuffle = args.shuffle,) 
-    valid_loader = get_dataloader(  valid_dataset,
-                                    batch_size=args.batch_size,
-                                    shuffle = args.shuffle,)"""
-    
     # init neural net
     """filepath = 'Params/'
     N = args.N
@@ -210,10 +202,19 @@ def main(args):
         f.write(f"trainable params = {trainable_params}")
     
     train_dataset, valid_dataset = load_dataset(args)  #### old dataset class
-    print(f"trainset size: {len(train_dataset.dataset)} | valset size: {len(valid_dataset.dataset)}")
-    
     trainer = Trainer(net, args, train_dataset, valid_dataset)
-    #trainer = Trainer(net, args, train_loader, valid_loader)
+    """dataset = rirDataset(args)
+    train_dataset, valid_dataset = split_dataset(dataset, args.split)
+    # dataloaders
+    train_loader = get_dataloader(  train_dataset,
+                                    batch_size=args.batch_size,
+                                    shuffle = args.shuffle,) 
+    valid_loader = get_dataloader(  valid_dataset,
+                                    batch_size=args.batch_size,
+                                    shuffle = args.shuffle,)
+    trainer = Trainer(net, args, train_loader, valid_loader)"""
+    #print(f"trainset size: {len(train_dataset.dataset)} | valset size: {len(valid_dataset.dataset)}")
+    
     trainer.train()
 
 if __name__ == '__main__':

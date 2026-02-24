@@ -13,7 +13,7 @@ import random
 def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float = 1.):
     IRs = {}
     pathlist = [y for x in os.walk(dir) for y in glob(os.path.join(x[0], '*.wav'))]
-    random.shuffle(pathlist)
+    #random.shuffle(pathlist)
 
     for item in tqdm(pathlist):
         try:
