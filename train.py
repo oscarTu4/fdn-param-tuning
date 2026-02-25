@@ -73,6 +73,8 @@ class Trainer:
         plot_out = os.path.join(self.train_dir, 'plots')
         os.makedirs(plot_out, exist_ok=True)
 
+        early_stop = EarlyStopper(patience=50000, min_delta=1e-4)
+
         for epoch in range(self.max_epochs):
             st_epoch = time.time()
             epoch_loss, grad_norm = 0, 0
@@ -87,8 +89,8 @@ class Trainer:
                 estimate, H, _, _, _ = self.net(input, self.x)  # get estimate
 
                 loss = self.criterion(estimate, target) # compute loss
-                if torch.isnan(loss):
-                    print(f"loss nan at input {input}")
+                #if torch.isnan(loss):
+                #    print(f"loss nan at input {input}")
                 epoch_loss += loss.item()
                 loss.backward()
                 # clip gradients
@@ -119,8 +121,8 @@ class Trainer:
             # ----------- VALIDATION ----------- # 
             epoch_loss = 0
             pbar = tqdm(self.valid_dataset, desc="Validation")
-            for _, data in enumerate(pbar):
-                input = data
+            for _, input in enumerate(pbar):
+                input = input.to(device)
                 target = input.clone()
                 self.optimizer.zero_grad()
                 estimate, H, _, _, _ = self.net(input, self.x)
@@ -163,6 +165,9 @@ class Trainer:
 
             plt.savefig(os.path.join(plot_out, f"e{epoch}.pdf"))
             plt.close()
+
+            if early_stop.early_stop(self.valid_loss[-1]):
+                return
 
 
     def print_results(self, e, e_time):
