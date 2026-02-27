@@ -91,6 +91,8 @@ class Trainer:
                 loss = self.criterion(estimate, target) # compute loss
                 if torch.isnan(loss):
                     print(f"loss is nan at index {idx}")
+                    print("input max abs:", input.abs().max().item())
+                    print("min/max:", input.min().item(), input.max().item())
                     exit()
                 #if torch.isnan(loss):
                 #    print(f"loss nan at input {input}")

@@ -49,7 +49,7 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             
             label = item.split(".wav")[0]
             #IRs[label] = ir
-            IRs[label] = torch.from_numpy(ir)   # hässlich aber nan fehler beim andern dataset, onset/normalize und so nur für numpy
+            IRs[label] = torch.from_numpy(ir)
         except Exception as e:
             print(e)
             #raise e
