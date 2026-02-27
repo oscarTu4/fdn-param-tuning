@@ -27,7 +27,6 @@ class Trainer:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.net = net
         self.net = self.net.to(self.device)
-        self.net.train()
 
         self.max_epochs = args.max_epochs
         self.train_dir = args.train_dir
@@ -63,9 +62,6 @@ class Trainer:
     
     def train(self):
         device = get_device()
-        if (device == 'cuda') & torch.cuda.is_available():
-            torch.set_default_tensor_type(torch.cuda.FloatTensor)
-        print("Device: "+str(device))
 
         write_audio(self.test_batch[0,:], 
                 os.path.join(self.train_dir, 'audio_output'),
