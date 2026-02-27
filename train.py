@@ -49,7 +49,7 @@ class Trainer:
             self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
         
         self.criterion = MSSpectralLoss()
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 50000, gamma = 10**(-0.2))
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 12500, gamma = 10**(-0.2))
 
         self.base_lr = args.lr
 
@@ -258,7 +258,7 @@ if __name__ == '__main__':
     
     # optimizer
     parser.add_argument('--lr', type=float, default=5e-5, help='learning rate')
-    parser.add_argument('--scheduler_steps', default=250000)
+    parser.add_argument('--scheduler_steps', default=62500)
     parser.add_argument('--training_name', type=str, default="test")
     args = parser.parse_args()
 
