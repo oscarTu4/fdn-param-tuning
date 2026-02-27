@@ -148,7 +148,7 @@ class Trainer:
             et_epoch = time.time()
 
             self.print_results(epoch, et_epoch-st_epoch)
-            if epoch % 10 == 0:
+            if epoch % 2 == 0:
                 self.save_model(epoch)
             
             # loss plotten/speicher. kann auch öfter/seltener gemacht werden
