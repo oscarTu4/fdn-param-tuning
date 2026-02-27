@@ -119,21 +119,23 @@ class Trainer:
 
 
             # ----------- VALIDATION ----------- # 
+            self.net.eval()
             epoch_loss = 0
             pbar = tqdm(self.valid_dataset, desc="Validation")
-            for _, input in enumerate(pbar):
-                input = input.to(device)
-                target = input.clone()
-                self.optimizer.zero_grad()
-                estimate, H, _, _, _ = self.net(input, self.x)
-                # apply loss
-                loss = self.criterion(estimate, target)
-                epoch_loss += loss.item() 
+            with torch.no_grad():
+                for _, input in enumerate(pbar):
+                    input = input.to(device)
+                    target = input.clone()
+                    estimate, H, _, _, _ = self.net(input, self.x)
+                    # apply loss
+                    loss = self.criterion(estimate, target)
+                    epoch_loss += loss.item() 
                 
-                # für progressbar
-                pbar.set_postfix({
-                    "loss": f"{loss}",
-                })
+                    # für progressbar
+                    pbar.set_postfix({
+                        "loss": f"{loss}",
+                    })
+            self.net.train()
             
             self.valid_loss.append(epoch_loss/len(self.valid_dataset))
             et_epoch = time.time()
@@ -154,7 +156,7 @@ class Trainer:
                 file.write("epoch: {:04d} train loss: {:6.4f} valid loss: {:6.4f}\n".format(
                     epoch, self.train_loss[-1], self.valid_loss[-1]))
             
-            """es = self.test_batch[0,:].cpu()
+            es = self.test_batch[0,:].cpu()
             ps = test_ir_out[0,:].cpu().detach()
             times = np.zeros(len(ps))
             eval_sig = pf.Signal([es.flatten(),times.flatten()],sampling_rate=self.samplerate, is_complex=True)
@@ -166,7 +168,7 @@ class Trainer:
             plt.legend()
 
             plt.savefig(os.path.join(plot_out, f"e{epoch}.pdf"))
-            plt.close()"""
+            plt.close()
 
             if early_stop.early_stop(self.valid_loss[-1]):
                 return
@@ -243,7 +245,7 @@ if __name__ == '__main__':
     
     # training
     parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    parser.add_argument('--max_epochs', type=int, default=1500,  help='maximum number of training epochs')
+    parser.add_argument('--max_epochs', type=int, default=100,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
     parser.add_argument('--conf_backbone', action='store_true')
     
