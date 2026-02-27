@@ -81,7 +81,7 @@ class Trainer:
             
             # ----------- TRAINING ----------- # 
             pbar = tqdm(self.train_dataset, desc=f"Training | Epoch {epoch}/{self.max_epochs}")
-            for _, input in enumerate(pbar):
+            for idx, input in enumerate(pbar):
                 input = input.to(device)
                 target = input.clone()
 
@@ -89,6 +89,9 @@ class Trainer:
                 estimate, H, _, _, _ = self.net(input, self.x)  # get estimate
 
                 loss = self.criterion(estimate, target) # compute loss
+                if torch.isnan(loss):
+                    print(f"loss is nan at index {idx}")
+                    exit()
                 #if torch.isnan(loss):
                 #    print(f"loss nan at input {input}")
                 epoch_loss += loss.item()
