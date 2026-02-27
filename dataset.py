@@ -15,7 +15,7 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
     pathlist = [y for x in os.walk(dir) for y in glob(os.path.join(x[0], '*.wav'))]
     #random.shuffle(pathlist)
 
-    for item in tqdm(pathlist[:320]):
+    for item in tqdm(pathlist):
         try:
             ir, sr = torchaudio.load(item)
 
