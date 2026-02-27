@@ -154,9 +154,11 @@ class Trainer:
                 file.write("epoch: {:04d} train loss: {:6.4f} valid loss: {:6.4f}\n".format(
                     epoch, self.train_loss[-1], self.valid_loss[-1]))
             
-            times = np.zeros(len(test_ir_out[0,:].detach()))
-            eval_sig = pf.Signal([self.test_batch[0,:].flatten(),times.flatten()],sampling_rate=self.samplerate, is_complex=True)
-            pred_sig = pf.Signal([test_ir_out[0,:].detach().flatten(),times.flatten()],sampling_rate=self.samplerate, is_complex=True)
+            es = self.test_batch[0,:].cpu()
+            ps = test_ir_out[0,:].cpu().detach()
+            times = np.zeros(len(ps))
+            eval_sig = pf.Signal([es.flatten(),times.flatten()],sampling_rate=self.samplerate, is_complex=True)
+            pred_sig = pf.Signal([ps.flatten(),times.flatten()],sampling_rate=self.samplerate, is_complex=True)
 
             plt.figure()
             pf.plot.time_freq(eval_sig, label="eval", alpha=0.5)
