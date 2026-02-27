@@ -8,6 +8,7 @@ config_*.py
 /data
 /runs
 /mushra
+/shoebox_results
 .vscode
 launch.json
 .vscode/launch.json

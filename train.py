@@ -87,10 +87,13 @@ class Trainer:
 
                 self.optimizer.zero_grad()
                 estimate, H, _, _, _ = self.net(input, self.x)  # get estimate
-
+                
+                if not torch.isfinite(estimate).all():
+                    print("Non-finite estimate detected")
+                    print("estimate max:", estimate.abs().max().item())
                 loss = self.criterion(estimate, target) # compute loss
                 if torch.isnan(loss):
-                    print(f"loss is nan at index {idx}")
+                    print(f"loss is nan in batch index {idx}")
                     print("input max abs:", input.abs().max().item())
                     print("min/max:", input.min().item(), input.max().item())
                     exit()
