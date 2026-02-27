@@ -61,6 +61,7 @@ class Trainer:
         self.test_batch = next(iter(valid_dataset)).to(self.device)
     
     def train(self):
+        self.net.train()
         device = get_device()
 
         write_audio(self.test_batch[0,:], 
@@ -110,6 +111,7 @@ class Trainer:
                 # update the weights
                 self.optimizer.step()
                 if self.steps >= self.warmup_steps and self.steps >= self.scheduler_steps:
+                    print(f"scheduler step")
                     self.scheduler.step()
                 self.steps += 1
     
@@ -246,7 +248,7 @@ if __name__ == '__main__':
     parser.add_argument('--N', type=int, default=8)
     parser.add_argument('--delay_set', type=int, default=1)
     parser.add_argument('--num', type=int, default=120000)
-    parser.add_argument('--clip_max_norm', default=10, help='gradient clipping maximum gradient norm')
+    parser.add_argument('--clip_max_norm', type=float, default=10.0, help='gradient clipping maximum gradient norm')
     
     # training
     parser.add_argument('--batch_size', type=int, default=32, help='batch size')
