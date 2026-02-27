@@ -49,7 +49,7 @@ class Trainer:
             self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
         
         self.criterion = MSSpectralLoss()
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 10, gamma = 10**(-0.2))
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 1250, gamma = 10**(-0.2))
 
         self.base_lr = args.lr
 
@@ -252,13 +252,13 @@ if __name__ == '__main__':
     
     # training
     parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    parser.add_argument('--max_epochs', type=int, default=100,  help='maximum number of training epochs')
+    parser.add_argument('--max_epochs', type=int, default=30,  help='maximum number of training epochs')
     parser.add_argument('--log_epochs', action='store_true', help='Store met parameters at every epoch')
     parser.add_argument('--conf_backbone', action='store_true')
     
     # optimizer
     parser.add_argument('--lr', type=float, default=5e-5, help='learning rate')
-    parser.add_argument('--scheduler_steps', default=10)
+    parser.add_argument('--scheduler_steps', default=2500)
     parser.add_argument('--training_name', type=str, default="test")
     args = parser.parse_args()
 
