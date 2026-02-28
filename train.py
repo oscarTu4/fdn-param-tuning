@@ -111,10 +111,10 @@ class Trainer:
                 # update the weights
                 self.optimizer.step()
                 if self.steps >= self.warmup_steps:
-                    if self.steps >= self.scheduler_steps:
+                    if self.steps >= (self.scheduler_steps + self.warmup_steps):
                         #print(f"scheduler step")
                         self.scheduler.step()
-                    self.steps += 1
+                self.steps += 1
     
                 # für progressbar
                 lr = self.optimizer.param_groups[0]['lr']
