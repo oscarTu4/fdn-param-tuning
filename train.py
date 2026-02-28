@@ -49,7 +49,7 @@ class Trainer:
             self.optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
         
         self.criterion = MSSpectralLoss()
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 1250, gamma = 10**(-0.2))
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size = 2500, gamma = 10**(-0.2))
 
         self.base_lr = args.lr
 
@@ -110,10 +110,11 @@ class Trainer:
 
                 # update the weights
                 self.optimizer.step()
-                if self.steps >= self.warmup_steps and self.steps >= self.scheduler_steps:
-                    #print(f"scheduler step")
-                    self.scheduler.step()
-                self.steps += 1
+                if self.steps >= self.warmup_steps:
+                    if self.steps >= self.scheduler_steps:
+                        #print(f"scheduler step")
+                        self.scheduler.step()
+                    self.steps += 1
     
                 # für progressbar
                 lr = self.optimizer.param_groups[0]['lr']
