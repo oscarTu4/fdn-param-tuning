@@ -14,15 +14,15 @@ from datetime import datetime
 import pandas as pd
 
 ### PFADE ANPASSEN JE NACH ORDNERSTRUKTUR ###
-exp = "outputs/EXPERIMENTNAME" ### Hier Pfad einfügen zu Ordner, in dem arg.json ist und checkpoints
+exp = "outputs/Conf 2802-1500" ### Hier Pfad einfügen zu Ordner, in dem arg.json ist und checkpoints
 #eval_path = os.path.join(exp, f"audio_input")
-eval_path = "/Users/flo_steig/Desktop/fdn-param-tuning/test_input" ### Hier Pfad zu IRs einfügen, die evaluiert werden sollen
+eval_path = "/Users/flo_steig/Desktop/fdn-param-tuning/outputs/test/audio_input" ### Hier Pfad zu IRs einfügen, die evaluiert werden sollen
 files = [f for f in os.listdir(eval_path) if f.lower().endswith(".wav")]
 csv_dir = os.path.join(exp, "evaluation_results") # Ordner für csv-Datei mit Metrics erstellen, falls noch nicht da
 os.makedirs(csv_dir, exist_ok=True)
 
 # config, ggf. ANPASSEN
-epoch = 500
+epoch = 16
 device = "cpu"
 date_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
 
@@ -38,9 +38,7 @@ ckpt_path = os.path.join(exp, f"checkpoints/model_e{epoch}.pt")
 #model_name = ckpt_path.split("/")[-1] 
 model_name = os.path.splitext(os.path.basename(ckpt_path))[0]
 
-net = ASPestNet(None,
-                rir_length=args["rir_length"],
-                conf_backbone=args["conf_backbone"])
+net = ASPestNet(rir_length=args["rir_length"],conf_backbone=args["conf_backbone"])
 
 weights = torch.load(ckpt_path, map_location=device)
 net.load_state_dict(weights)
@@ -261,10 +259,6 @@ for idx, file in enumerate(files, 1):
     print("Calculating metrics...")
     # EDR ERRO
     print("Calculating EDR...")
-    print("IR shape:", ir_np.shape)
-    print("IR size:", ir_np.size)
-    print("Pred shape:", pred_np.shape)
-    print("Pred size:", pred_np.size)
     # edr_ref = compute_edr(ir_np)
     # edr_pred = compute_edr(pred_np)
     # edr_errors.append(np.mean(np.abs(edr_ref - edr_pred)))
