@@ -259,7 +259,7 @@ if __name__ == '__main__':
     
     # optimizer
     parser.add_argument('--lr', type=float, default=5e-5, help='learning rate')
-    parser.add_argument('--scheduler_steps', default=2500)
+    parser.add_argument('--scheduler_steps', type=int, default=2500)
     parser.add_argument('--training_name', type=str, default="test")
     args = parser.parse_args()
 
