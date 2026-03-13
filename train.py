@@ -242,7 +242,7 @@ if __name__ == '__main__':
     
     # dataset 
     #parser.add_argument('--path_to_IRs', type=str, default="/Users/oscar/Documents/Uni/Audiokommunikation/3. Semester/DLA/Impulse Responses/train_of")
-    parser.add_argument('--path_to_IRs', type=str, default="/home/allen2/DL4AD/repositories/Shoebox-Random-RIRs/shoebox_results")
+    parser.add_argument('--path_to_IRs', type=str, default="/home/allen2/DL4AD/repositories/Shoebox-Random-RIRs/shoebox_results_uniform")
     parser.add_argument('--split', type=float, default=0.8, help='training / validation split')
     parser.add_argument('--shuffle', default=True, help='if true, shuffle the data in the dataset at every epoch')
     parser.add_argument('--rir_length', type=float, default=1.8, help="wenn != None werden alle IRs auf diese Länge gebracht. ist eig pflicht")
