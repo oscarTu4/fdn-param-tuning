@@ -9,6 +9,7 @@ config_*.py
 /runs
 /mushra
 /shoebox_results
+/shoebox_freq_dep
 .vscode
 launch.json
 .vscode/launch.json
