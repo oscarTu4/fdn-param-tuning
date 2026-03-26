@@ -300,15 +300,6 @@ plt.savefig(os.path.join(conf_out, filename), dpi=300)
 plt.show()
 
 
-#
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import os
-
-
-
 metrics = [
     ("T30","T30 (s)"),
     ("C50","C50 (dB)"),
