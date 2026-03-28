@@ -18,6 +18,7 @@ import pandas as pd
 
 #exp: path to folder with arg.json and checkpoints
 exp = "outputs/Conf 2203-1000"
+#exp = "outputs/GRU 2103-1300"
 # eval_path: Path to IRs that we want to evaluate
 eval_path = "/Users/flo_steig/Desktop/shoebox_freq_dep_eval/wav" 
 #eval_path = "/Users/flo_steig/Desktop/MIT_Survey_IRs"
@@ -218,6 +219,7 @@ edr_errors = []
 delta_t30_oct = {fc: [] for fc in nom_freq_pf}
 delta_c50_oct = {fc: [] for fc in nom_freq_pf}
 delta_drr_oct = {fc: [] for fc in nom_freq_pf}
+delta_t30_rel_oct = {fc: [] for fc in nom_freq_pf}
 delta_t30_oct_avg = []
 delta_c50_oct_avg = []
 delta_drr_oct_avg = []
@@ -359,8 +361,12 @@ for idx, file in enumerate(files, 1):
         band_deltas_c50.append(delta_c50)
         band_deltas_drr.append(delta_drr)
 
+        # if not np.isnan(t30_ref_band) and t30_ref_band != 0:
+        #     band_rel.append(abs(t30_pred_band - t30_ref_band) / t30_ref_band * 100)
         if not np.isnan(t30_ref_band) and t30_ref_band != 0:
-            band_rel.append(abs(t30_pred_band - t30_ref_band) / t30_ref_band * 100)
+            rel = abs(t30_pred_band - t30_ref_band) / t30_ref_band * 100
+            band_rel.append(rel)
+            delta_t30_rel_oct[fc].append(rel)
 
     if len(band_rel) > 0:
         delta_t30_rel_oct_avg.append(np.nanmean(band_rel))
@@ -425,7 +431,7 @@ for idx, file in enumerate(files, 1):
 
  
 # save Terminal Output in txt file (in addition to csv, just for readability)
-log_path = os.path.join(csv_dir, f"evaluation_results_{model_name}_{dataset}_{date_str}.txt")
+log_path = os.path.join(csv_dir, f"evaluation_results_%_{model_name}_{dataset}_{date_str}.txt")
 log_file = open(log_path, "w")
 
 def log_print(text=""):
@@ -470,6 +476,9 @@ log_print("\n--- OCTAVEBAND RESULTS ---")
 for fc in nom_freq_pf:
     log_print(f"{fc} Hz:")
     log_print(f"  Median ΔT30: {np.nanmedian(delta_t30_oct[fc]):.4f} s")
+    rel = np.nanmedian(delta_t30_rel_oct[fc])
+    log_print(f"  Median ΔT30 (%): {rel:.2f} %")
+    log_print(f"  T30 rating: {evaluate_jnd_t30(rel)}")
     log_print(f"  Median ΔC50: {np.nanmedian(delta_c50_oct[fc]):.4f} dB")
     log_print(f"  Median ΔDRR: {np.nanmedian(delta_drr_oct[fc]):.4f} dB")
 
@@ -513,10 +522,10 @@ for fc in nom_freq_pf:
     results[f"median_delta_T30_{int(fc)}Hz"] = np.nanmedian(delta_t30_oct[fc])
     results[f"median_delta_C50_{int(fc)}Hz"] = np.nanmedian(delta_c50_oct[fc])
     results[f"median_delta_DRR_{int(fc)}Hz"] = np.nanmedian(delta_drr_oct[fc])
-
+    results[f"median_delta_T30_rel_{int(fc)}Hz_percent"] = np.nanmedian(delta_t30_rel_oct[fc])
 df = pd.DataFrame([results])
 
-csv_name = f"evaluation_{model_name}_{dataset}_{date_str}.csv"
+csv_name = f"evaluation_%_{model_name}_{dataset}_{date_str}.csv"
 csv_path = os.path.join(csv_dir, csv_name)
 df.to_csv(csv_path, index=False)
 
@@ -526,7 +535,7 @@ print(f"\nResults saved to {csv_path}")
 # Special IRs from RIR2FDN for individual evaluation
 if len(special_results) > 0:
 
-    log_path = os.path.join(csv_dir, f"special_irs_evaluation_results_{model_name}_{date_str}.txt")
+    log_path = os.path.join(csv_dir, f"special_irs_evaluation_results_%_{model_name}_{date_str}.txt")
     log_file = open(log_path, "w")
 
     log_print("\n==============================")
@@ -568,6 +577,9 @@ if len(special_results) > 0:
 
             log_print(f"{fc} Hz:")
             log_print(f"  ΔT30: {t30:.4f} s")
+            rel = np.nanmedian(delta_t30_rel_oct[fc])
+            log_print(f"  Median ΔT30 (%): {rel:.2f} %")
+            log_print(f"  T30 rating: {evaluate_jnd_t30(rel)}")
             log_print(f"  ΔC50: {c50:.4f} dB")
             log_print(f"  ΔDRR: {drr:.4f} dB")
 
@@ -586,7 +598,7 @@ if len(special_results) > 0:
 
     special_csv = os.path.join(
         csv_dir,
-        f"evaluation_special_IRs_{model_name}_{date_str}.csv"
+        f"evaluation_special_IRs_%_{model_name}_{date_str}.csv"
     )
 
     df_special.to_csv(special_csv, index=False)

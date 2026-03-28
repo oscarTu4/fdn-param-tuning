@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import os as os
 
 # CSV files
-gru_shoebox_csv = "outputs/GRU 2103-1300/evaluation_results/evaluation_model_e16_shoebox_2026-03-23_13-30-34.csv"
-conf_shoebox_csv = "outputs/Conf 2203-1000/evaluation_results/evaluation_model_e16_shoebox_2026-03-23_14-01-47.csv"
+gru_shoebox_csv = "outputs/GRU 2103-1300/evaluation_results/evaluation_%_model_e16_shoebox_2026-03-28_14-59-59.csv"
+conf_shoebox_csv = "outputs/Conf 2203-1000/evaluation_results/evaluation_%_model_e16_shoebox_2026-03-28_15-16-53.csv"
 
-gru_mit_csv = "outputs/GRU 2103-1300/evaluation_results/evaluation_model_e16_MIT_2026-03-23_13-47-03.csv"
-conf_mit_csv = "outputs/Conf 2203-1000/evaluation_results/evaluation_model_e16_MIT_2026-03-23_13-52-44.csv"
+gru_mit_csv = "outputs/GRU 2103-1300/evaluation_results/evaluation_%_model_e16_MIT_2026-03-28_14-50-54.csv"
+conf_mit_csv = "outputs/Conf 2203-1000/evaluation_results/evaluation_%_model_e16_MIT_2026-03-28_14-40-10.csv"
 
 # CSV files for IRs from RIR2FDN
 gru_special_csv = "outputs/GRU 2103-1300/evaluation_results/evaluation_special_IRs_model_e16_2026-03-23_13-47-03.csv"
@@ -344,3 +344,232 @@ plt.savefig(os.path.join(gru_out, filename), dpi=300)
 plt.savefig(os.path.join(conf_out, filename), dpi=300)
 
 plt.show() 
+#### PLOTS WITH PERCENTAGES FOR T30 (the ones we decided to use in the paper) ####
+### Plot with T30 as percentages 
+
+
+def add_jnd_t30(ax):
+    ax.axhspan(5, 25, color="red", alpha=0.08)
+
+def add_jnd_c50(ax):
+    ax.axhline(1, linestyle="--", color="red")
+
+fig, axes = plt.subplots(1, 3, figsize=(10, 4.5))
+
+colors = ["tab:blue", "tab:orange"]
+
+# Order: GRU Shoebox, Conf Shoebox, GRU MIT, Conf MIT
+# Values are from txt files
+t30_percent_values = [
+    19.33,  # GRU Shoebox
+    10.14,  # Conf Shoebox
+    137.30,  # GRU MIT
+    70.67   # Conf MIT
+]
+
+
+x = np.array([0, 1, 3, 4])
+
+def add_bracket(ax, x1, x2, y, text):
+    ax.plot([x1, x1, x2, x2], [y, y*1.05, y*1.05, y],
+            lw=1.5, color="black")
+    ax.text((x1+x2)/2, y*1.08, text,
+            ha='center', va='bottom', color="black")
+
+
+# T30 (%)
+ax = axes[0]
+
+ax.bar(x, t30_percent_values,
+       color=[colors[0], colors[1], colors[0], colors[1]])
+
+ax.set_xticks(x)
+ax.set_xticklabels(["GRU", "Conf", "GRU", "Conf"])
+
+ax.set_title("ΔT30 (%)")
+ax.set_ylabel("ΔT30 (%)")
+
+# JND range (5–25%)
+ax.axhspan(5, 25, alpha=0.1, color= "red", label="JND")
+
+ymax = max(t30_percent_values)
+ax.set_ylim(0, ymax * 1.3)
+
+add_bracket(ax, 0, 1, ymax * 1.05, "Shoebox")
+add_bracket(ax, 3, 4, ymax * 1.05, "MIT")
+ax.legend(loc="upper left", fontsize=8)
+
+# C50 (dB)
+ax = axes[1]
+
+c50_values = [
+    gru_shoebox["median_delta_C50_full"][0],
+    conf_shoebox["median_delta_C50_full"][0],
+    gru_mit["median_delta_C50_full"][0],
+    conf_mit["median_delta_C50_full"][0],
+]
+
+ax.bar(x, c50_values,
+       color=[colors[0], colors[1], colors[0], colors[1]])
+
+ax.set_xticks(x)
+ax.set_xticklabels(["GRU", "Conf", "GRU", "Conf"])
+
+ax.set_title("ΔC50 (dB)")
+ax.set_ylabel("ΔC50 (dB)")
+
+# JND = 1 dB
+ax.axhline(1, linestyle="--", color="red", label="JND")
+ax.legend(loc="upper left", fontsize=8)
+
+ymax = max(c50_values)
+ax.set_ylim(0, ymax * 1.3)
+
+add_bracket(ax, 0, 1, ymax * 1.05, "Shoebox")
+add_bracket(ax, 3, 4, ymax * 1.05, "MIT")
+
+# DRR (dB)
+
+ax = axes[2]
+
+drr_values = [
+    gru_shoebox["median_delta_DRR_full"][0],
+    conf_shoebox["median_delta_DRR_full"][0],
+    gru_mit["median_delta_DRR_full"][0],
+    conf_mit["median_delta_DRR_full"][0],
+]
+
+ax.bar(x, drr_values,
+       color=[colors[0], colors[1], colors[0], colors[1]])
+
+ax.set_xticks(x)
+ax.set_xticklabels(["GRU", "Conf", "GRU", "Conf"])
+
+ax.set_title("ΔDRR (dB)")
+ax.set_ylabel("ΔDRR (dB)")
+
+
+#ax.axhline(3, linestyle="--", color="black", label="JND")
+
+ymax = max(drr_values)
+ax.set_ylim(0, ymax * 1.3)
+
+add_bracket(ax, 0, 1, ymax * 1.05, "Shoebox")
+add_bracket(ax, 3, 4, ymax * 1.05, "MIT")
+
+
+handles, labels = axes[0].get_legend_handles_labels()
+for ax in axes[1:]:
+    h, l = ax.get_legend_handles_labels()
+    handles += h
+    labels += l
+
+unique = dict(zip(labels, handles))
+
+# fig.legend(unique.values(), unique.keys(),
+#           loc="upper center", ncol=3)
+
+plt.tight_layout(rect=[0, 0, 1, 0.9])
+
+filename = "evaluation_fullband_JND_barplots.png"
+
+plt.savefig(os.path.join(gru_out, filename), dpi=300)
+plt.savefig(os.path.join(conf_out, filename), dpi=300)
+
+plt.show()
+
+### Shoebox and  MIT Survey Percentage Plots Octave BAnds
+
+datasets = [
+    ("Shoebox", gru_shoebox, conf_shoebox),
+    ("MIT", gru_mit, conf_mit)
+]
+
+metrics_percent = [
+    ("delta_T30","ΔT30 (%)"),
+    ("delta_C50","ΔC50 (dB)"),
+    ("delta_DRR","ΔDRR (dB)")
+]
+
+freqs = [125,250,500,1000,2000,4000,8000]
+bar_width = 0.35
+x = np.arange(len(freqs))
+
+colors = ["tab:blue", "tab:orange"]
+
+for dataset_name, gru_df, conf_df in datasets:
+
+    fig, axes = plt.subplots(1,3, figsize=(14,5))
+
+    fig.suptitle(f"{dataset_name} Testset", fontsize=14)
+
+    for i,(metric,label) in enumerate(metrics_percent):
+
+        ax = axes[i]
+
+        # T30 (%)
+
+        if metric == "delta_T30":
+
+            gru_vals = [gru_df[f"median_delta_T30_rel_{int(f)}Hz_percent"][0] for f in freqs]
+            conf_vals = [conf_df[f"median_delta_T30_rel_{int(f)}Hz_percent"][0] for f in freqs]
+
+            ax.bar(x-bar_width/2, gru_vals, bar_width, color=colors[0], label="GRU")
+            ax.bar(x+bar_width/2, conf_vals, bar_width, color=colors[1], label="Conformer")
+
+            # JND Area
+            ax.axhspan(5, 25, color="red", alpha=0.08, label="JND range (5–25%)")
+
+            ax.set_ylabel("ΔT30 (%)")
+
+        
+        # C50
+
+        elif metric == "delta_C50":
+
+            gru_vals = [gru_df[f"median_delta_C50_{int(f)}Hz"][0] for f in freqs]
+            conf_vals = [conf_df[f"median_delta_C50_{int(f)}Hz"][0] for f in freqs]
+
+            ax.bar(x-bar_width/2, gru_vals, bar_width, color=colors[0])
+            ax.bar(x+bar_width/2, conf_vals, bar_width, color=colors[1])
+
+            # JND Line
+            ax.axhline(1, linestyle="--", color="red", label="JND (1 dB)")
+
+            ax.set_ylabel("ΔC50 (dB)")
+
+
+        # DRR
+  
+        elif metric == "delta_DRR":
+
+            gru_vals = [gru_df[f"median_delta_DRR_{int(f)}Hz"][0] for f in freqs]
+            conf_vals = [conf_df[f"median_delta_DRR_{int(f)}Hz"][0] for f in freqs]
+
+            ax.bar(x-bar_width/2, gru_vals, bar_width, color=colors[0])
+            ax.bar(x+bar_width/2, conf_vals, bar_width, color=colors[1])
+
+            ax.set_ylabel("ΔDRR (dB)")
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(freqs)
+        ax.set_xlabel("Frequency (Hz)")
+        ax.set_title(label)
+
+        if i == 0 and dataset_name == "Shoebox":
+            ax.legend(loc="upper left", fontsize=8)
+        if i == 1 and dataset_name == "Shoebox":
+            ax.legend(loc="upper right", fontsize=8)
+        if i == 0 and dataset_name == "MIT":
+            ax.legend(loc="upper right", fontsize=8)
+        if i == 1 and dataset_name == "MIT":
+            ax.legend(loc="upper left", fontsize=8)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+
+    filename = f"evaluation_{dataset_name.lower()}_octave_band_barplots_percent.png"
+
+    plt.savefig(os.path.join(gru_out, filename), dpi=300)
+    plt.savefig(os.path.join(conf_out, filename), dpi=300)
+
+    plt.show()
