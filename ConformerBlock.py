@@ -3,6 +3,12 @@ import torch.nn as nn
 from typing import Optional, Tuple
 
 def _lengths_to_padding_mask(lengths: torch.Tensor) -> torch.Tensor:
+    """
+        converts sequence lengths to a boolean padding mask
+        args:
+        - lengths: tensor of shape (batch_size,) with sequence lengths
+        returns:
+    """
     batch_size = lengths.shape[0]
     max_length = int(torch.max(lengths).item())
     padding_mask = torch.arange(max_length, device=lengths.device, dtype=lengths.dtype).expand(
@@ -11,17 +17,26 @@ def _lengths_to_padding_mask(lengths: torch.Tensor) -> torch.Tensor:
     return padding_mask
 
 class ConvBlock(nn.Module):
+    """
+        convolutional block used inside the conformer layer
+        args:
+        - input_dim: input dimension
+        - num_channels: number of channels in depthwise convolution
+        - kernel_size: kernel size of the depthwise convolution (must be odd)
+        - dropout: dropout probability
+        - bias: whether to use bias in convolution layers
+    """
     def __init__(
         self,
         input_dim: int,
         num_channels: int,
-        depthwise_kernel_size: int,
+        kernel_size: int,
         dropout: float = 0.0,
         bias: bool = False,
     ) -> None:
         super().__init__()
-        if (depthwise_kernel_size - 1) % 2 != 0:
-            raise ValueError("depthwise_kernel_size must be odd")
+        if (kernel_size - 1) % 2 != 0:
+            raise ValueError("kernel_size must be odd")
         self.layer_norm = nn.LayerNorm(input_dim)
         self.sequential = nn.Sequential(
             nn.Conv1d(
@@ -36,9 +51,9 @@ class ConvBlock(nn.Module):
             nn.Conv1d(
                 num_channels,
                 num_channels,
-                depthwise_kernel_size,
+                kernel_size,
                 stride=1,
-                padding=(depthwise_kernel_size - 1) // 2,
+                padding=(kernel_size - 1) // 2,
                 groups=num_channels,
                 bias=bias,
             ),
@@ -63,12 +78,20 @@ class ConvBlock(nn.Module):
 
 
 class ConformerLayer(nn.Module):
+    """
+        single conformer layer as detailed in Figure 2b in the paper
+        args:
+        - input dim: input dimension
+        - ffn_dim: hidden layer dimension of the feed forwards
+        - num_attention_heads: number multihead attention heads
+        - kernel_size: kernel size of the convolutional block
+    """
     def __init__(
         self,
         input_dim: int,
         ffn_dim: int,
         num_attention_heads: int,
-        depthwise_conv_kernel_size: int,
+        kernel_size: int,
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
@@ -89,7 +112,7 @@ class ConformerLayer(nn.Module):
         self.conv_block = ConvBlock(
             input_dim=input_dim,
             num_channels=input_dim,
-            depthwise_kernel_size=depthwise_conv_kernel_size,
+            kernel_size=kernel_size,
             dropout=dropout,
             bias=True,
         )
@@ -98,10 +121,10 @@ class ConformerLayer(nn.Module):
 
     def forward(self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor]) -> torch.Tensor:
         
-        # half ff
+        # half feed forward
         x = x + 0.5 * self.feed_forward(x)
 
-        # mh attn
+        # multihead attention
         res = x
         x = self.self_attn_layer_norm(x)
         x, _ = self.self_attn(
@@ -114,39 +137,49 @@ class ConformerLayer(nn.Module):
         x = self.self_attn_dropout(x)
         x = x + res
 
-        # conv block
+        # convolutional block
         res = x
         x = x.transpose(0, 1)
         x = self.conv_block(x)
         x = x.transpose(0, 1)
         x = x + res
 
-        # half ff
+        # half feed forward
         x = x + 0.5 * self.feed_forward(x)
 
         x = self.final_layer_norm(x)
         return x
 
 class Conformer(nn.Module):
-
+    """
+        Main function of the Conformer Block. 
+        args:
+        - input dim: input dimension
+        - num_heads: number of multihead attention heads
+        - ffn_dim: hidden layer dimension of the feed forwards
+        - num_layers: number of Conformer layers
+        - kernel_size: kernel size of the convolutional block
+        - dropout: dropout
+    """
     def __init__(
         self,
         input_dim: int,
         num_heads: int,
         ffn_dim: int,
         num_layers: int,
-        depthwise_conv_kernel_size: int,
+        kernel_size: int,
         dropout: float = 0.0,
     ):
         super().__init__()
 
+        # init of conformer layers
         self.conformer_layers = nn.ModuleList(
             [
                 ConformerLayer(
                     input_dim,
                     ffn_dim,
                     num_heads,
-                    depthwise_conv_kernel_size,
+                    kernel_size,
                     dropout=dropout
                 )
                 for _ in range(num_layers)
@@ -154,6 +187,13 @@ class Conformer(nn.Module):
         )
 
     def forward(self, input: torch.Tensor, lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+            forward pass of the conformer encoder
+            args:
+            - input: tensor of shape (batch_size, time, input_dim)
+            - lengths: tensor of shape (batch_size,) with sequence lengths
+            returns:
+        """
         encoder_padding_mask = _lengths_to_padding_mask(lengths)
 
         x = input.transpose(0, 1)

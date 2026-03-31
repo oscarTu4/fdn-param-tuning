@@ -1,3 +1,5 @@
+# Adapted from https://github.com/gdalsanto/diff-delay-net.git to accept Conformer architecture in from custom_encoder.py
+
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F

@@ -1,5 +1,6 @@
+# Copied from https://github.com/gdalsanto/diff-delay-net.git  
+
 # differentiable digital signal processing blocks
-# comput
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F

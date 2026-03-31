@@ -1,19 +1,23 @@
-# mit tweaks kopiert von https://github.com/gdalsanto/diff-delay-net.git
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 from einops import rearrange
 from nnAudio import features
 from utils.utility import *
-#from torchaudio.models import Conformer
 from ConformerBlock import Conformer
 
 class CustomEncoder(nn.Module):
+    """
+        Encoder for the Conformer architecture
+        This is where the impulse response is converted to an STFT and passed through the network layers as detailed in the paper
+    """
     def __init__(self, n_fft=1024, sr=48000, overlap=0.875):
         super().__init__()
         self.sr = sr
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # STFT
         hop_length = int(n_fft*(1-overlap))
         self.stft = features.stft.STFT(
             n_fft = n_fft,
@@ -26,12 +30,8 @@ class CustomEncoder(nn.Module):
             output_format = 'Magnitude',
             verbose=False
         ) #[b c f t]
-        
-        #base_chn = 32
-        #chn_multiplier = [1, 2, 4] 
-        #kernel = [(7,7), (5,5), (5,5)]
-        #strides = [(2,4), (4,1), (2,2)]
-        #channels_in = [513, 384, 256]
+
+        # convolutional subsampling
         channels_in = [1, 513, 384, 256, 128]
         channels_out = [513, 384, 256, 128, 64]
         kernel = [(7,5), (5,5), (5,5), (5,5), (5,5)]
@@ -40,10 +40,10 @@ class CustomEncoder(nn.Module):
         self.conv_list = nn.ModuleList([])
         for i in range(len(channels_in)):
             self.conv_list.append(
-                #conv1d_block(channels_in[i], channels_out[i], kernel[i], strides[i])
                 conv2d_block(channels_in[i], channels_out[i], kernel[i], strides[i])
             )
         
+        # conformer linear input layer
         c_o = 832
         dim = 256
         self.conf_lin_in = nn.Sequential(
@@ -55,10 +55,11 @@ class CustomEncoder(nn.Module):
             num_heads=8,
             ffn_dim=4*dim,
             num_layers=4,
-            depthwise_conv_kernel_size=15,
+            kernel_size=15,
             dropout=0.0
         )
         
+        # linear output layers
         self.lin_depth = 2
         self.lin_list = nn.ModuleList([])
         for i in range(self.lin_depth): 
@@ -67,19 +68,20 @@ class CustomEncoder(nn.Module):
             ))
     
     def forward(self, x):
-        #print(f"hier wurde vorher x nach {self.device} geschoben")
         x = x.to(self.device)
         x = torch.log(self.stft(x) + 1e-7)
-        # add channel dimension 
+        # add channel dimension
         x = torch.unsqueeze(x, 1)
 
+        # convolutional subsampling
         for i, module in enumerate(self.conv_list):
             x = module(x)
         
+        # conformer linear input layer
         x = rearrange(x, 'b c f t -> b t (c f)')
-        #x = x.permute(0, 2, 1)
         x = self.conf_lin_in(x)
 
+        # conformer layer
         B, T, _ = x.shape
         lengths = torch.full((B,), T, device=x.device, dtype=torch.long)
         x, _ = self.conformer(x, lengths)

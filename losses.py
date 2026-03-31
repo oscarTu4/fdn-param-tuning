@@ -1,3 +1,5 @@
+# Copied from https://github.com/gdalsanto/diff-delay-net.git 
+
 import torch 
 import torch.nn as nn 
 import torch.nn.functional as F

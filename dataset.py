@@ -8,18 +8,19 @@ from glob import glob
 from tqdm import tqdm
 from utils.processing import *
 from utils.utility import *
-import random
 
 def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float = 1.):
+    """
+        load all wav files found in the parsed directory.
+    """
     IRs = {}
     pathlist = [y for x in os.walk(dir) for y in glob(os.path.join(x[0], '*.wav'))]
-    #random.shuffle(pathlist)
 
     for item in tqdm(pathlist):
         try:
             ir, sr = torchaudio.load(item)
 
-            # sample rate bei bedarf anpassen
+            # adjust sample rate if necessary
             if sr != targetSR:
                 resample_tf = transforms.Resample(sr, targetSR)
                 ir = resample_tf(ir)
@@ -27,28 +28,22 @@ def loadAllIRFromFolder(dir: str=None, targetSR: int = 48000, ir_length: float =
             
             ir = pad_crop(ir, sr, ir_length)
             
-            # erstmal alles mono damit es läuft
-            #if ir.shape[0] != 1:
-            #    ir = ir[0, :].numpy()
+            # convert to mono
             if ir.ndim == 2:
                 ir = ir[0]
             ir = ir.squeeze().numpy()
             
             # --------------- PREPROCESSING --------------- #
-            # remove onset 
+            # remove onset and normalize
             if ir.shape[-1] < 256:
                 continue
             onset = find_onset(ir)
-            #print(f"onset: {onset}")
             ir = np.pad(ir[onset:],(0, onset))
-            # multply random gain to direct sound 
             ir = augment_direct_gain(ir, sr=sr)
-            # nornalize 
             ir = normalize_energy(ir)
             # --------------------------------------------- #
             
             label = item.split(".wav")[0]
-            #IRs[label] = ir
             IRs[label] = torch.from_numpy(ir)
         except Exception as e:
             print(e)
@@ -72,7 +67,6 @@ class Dataset(torch.utils.data.Dataset):
         return v
 
 def split_dataset(dataset, split):
-    
     train_set_size = int(len(dataset) * split)
     valid_set_size = len(dataset) - train_set_size
     generator = torch.Generator().manual_seed(42)
@@ -81,6 +75,11 @@ def split_dataset(dataset, split):
     return train_set, valid_set
 
 def load_dataset(args):
+    """
+        load training and validation dataset
+
+        function return an training and validation dataset as torch.utils.data.Dataloader objects
+    """
     dataset = Dataset(
         path_to_IRs=args.path_to_IRs,
         samplerate = args.samplerate,
