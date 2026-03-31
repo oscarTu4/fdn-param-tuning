@@ -78,6 +78,23 @@ The Conformer architecture is realised in the file `custom_encoder.py` and `Conf
 
 As already stated, run `train.py --conf_backbone` in order to activate Conformer architecture.
 
+## Evaluation
+
+Run evaluation.py to compute objective metrics (T30, C50, DRR) for predicted and reference room impulse responses. We follow the evaluation protocol proposed by Lee et al. (2022), but implemented our own evaluation pipeline since no code was available. 
+
+Before running the script please adjust the following parameters:
+•⁠  ⁠Path to the trained model (exp)
+•⁠  ⁠Path to the evaluation dataset (eval_path)
+•⁠  ⁠Dataset identifier (dataset = MIT or dataset = shoebox)
+•⁠  ⁠Checkpoint epoch (epoch)
+
+Output: The evaluation script produces: 
+•⁠  ⁠.txt files: Human-readable summaries including median errors, relative T30 error and perceptual interpretation based on JND thresholds
+•⁠  ⁠.csv files: Structured results for further analysis and plotting 
+
+Visualiziation:
+To visualize the results please use evaluation_plots.py. Before running, specify the paths to the .csv files and output directories at the top of the script.
+
 ## Code References
 
 https://github.com/gdalsanto/diff-delay-net.git (1)
@@ -85,3 +102,7 @@ https://github.com/gdalsanto/diff-delay-net.git (1)
 https://github.com/gdalsanto/diff-fdn-colorless.git (2)
 
 https://docs.pytorch.org/audio/2.1/_modules/torchaudio/models/conformer.html (3)
+
+## Literature References: 
+
+Lee, S., Choi, H.-S., & Lee, K. (2022). Differentiable Artificial Reverberation (arXiv:2105.13940). arXiv. https://doi.org/10.48550/arXiv.2105.13940
